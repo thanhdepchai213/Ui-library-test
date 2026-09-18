@@ -1,0 +1,3824 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local GUI_NAME = "SaikiMusic_Intro"
+local PROFILE_IMAGE = "rbxthumb://type=Asset&id=6294726987&w=420&h=420"
+local GITHUB_IMAGE = "https://raw.githubusercontent.com/thedevilondiscord/Why-Do-u-hate-me-T-T-/main/1147010598883426560.jpg"
+local SOUND_ID = "rbxassetid://101110156267710"
+pcall(function()
+	local old = CoreGui:FindFirstChild(GUI_NAME)
+	if old then old:Destroy() end
+end)
+local gui = Instance.new("ScreenGui")
+gui.Name = GUI_NAME
+gui.IgnoreGuiInset = true
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = CoreGui
+local function corner(parent, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = parent
+end
+local function stroke(parent, color, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thickness or 1
+	s.Transparency = transparency or 0
+	s.Parent = parent
+end
+local function gradient(parent)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(221,235,255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(242,225,252)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(232,249,244)),
+	})
+	g.Rotation = 20
+	g.Parent = parent
+end
+local function shadow(parent)
+	local s = Instance.new("Frame")
+	s.AnchorPoint = Vector2.new(.5,.5)
+	s.Position = UDim2.new(.5,4,.5,6)
+	s.Size = UDim2.new(1,12,1,12)
+	s.BackgroundColor3 = Color3.fromRGB(80,70,95)
+	s.BackgroundTransparency = .84
+	s.BorderSizePixel = 0
+	s.ZIndex = parent.ZIndex - 1
+	s.Parent = parent
+	corner(s, 24)
+end
+local card = Instance.new("Frame")
+card.AnchorPoint = Vector2.new(.5,.5)
+card.Position = UDim2.fromScale(.5,.5)
+card.Size = UDim2.fromOffset(500,300)
+card.BackgroundColor3 = Color3.fromRGB(244,246,255)
+card.BorderSizePixel = 0
+card.ZIndex = 10
+card.Parent = gui
+corner(card,26)
+stroke(card,Color3.fromRGB(190,205,225),1.5,.12)
+gradient(card)
+shadow(card)
+local avatarBack = Instance.new("Frame")
+avatarBack.AnchorPoint = Vector2.new(.5,0)
+avatarBack.Position = UDim2.new(.5,0,0,27)
+avatarBack.Size = UDim2.fromOffset(82,82)
+avatarBack.BackgroundColor3 = Color3.fromRGB(255,255,255)
+avatarBack.BorderSizePixel = 0
+avatarBack.ZIndex = 12
+avatarBack.Parent = card
+corner(avatarBack,41)
+stroke(avatarBack,Color3.fromRGB(205,170,220),2,.05)
+local avatar = Instance.new("ImageLabel")
+avatar.BackgroundTransparency = 1
+avatar.Size = UDim2.fromScale(1,1)
+avatar.Image = PROFILE_IMAGE
+avatar.ScaleType = Enum.ScaleType.Crop
+avatar.ZIndex = 13
+avatar.Parent = avatarBack
+corner(avatar,41)
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency = 1
+title.AnchorPoint = Vector2.new(.5,0)
+title.Position = UDim2.new(.5,0,0,121)
+title.Size = UDim2.new(1,-60,0,32)
+title.Font = Enum.Font.GothamBold
+title.Text = "SAIKI MUSIC"
+title.TextSize = 25
+title.TextColor3 = Color3.fromRGB(53,49,67)
+title.ZIndex = 12
+title.Parent = card
+local by = Instance.new("TextLabel")
+by.BackgroundTransparency = 1
+by.AnchorPoint = Vector2.new(.5,0)
+by.Position = UDim2.new(.5,0,0,153)
+by.Size = UDim2.new(1,-60,0,24)
+by.Font = Enum.Font.GothamMedium
+by.Text = "Script by Saiki"
+by.TextSize = 14
+by.TextColor3 = Color3.fromRGB(116,108,130)
+by.ZIndex = 12
+by.Parent = card
+local status = by:Clone()
+status.Name = "Status"
+status.Position = UDim2.new(.5,0,0,193)
+status.Size = UDim2.new(1,-70,0,22)
+status.Text = "Loading Saiki Music..."
+status.TextSize = 12
+status.Parent = card
+local bar = Instance.new("Frame")
+bar.AnchorPoint = Vector2.new(.5,0)
+bar.Position = UDim2.new(.5,0,0,229)
+bar.Size = UDim2.new(1,-90,0,12)
+bar.BackgroundColor3 = Color3.fromRGB(255,255,255)
+bar.BackgroundTransparency = .12
+bar.BorderSizePixel = 0
+bar.ZIndex = 12
+bar.Parent = card
+corner(bar,6)
+local fill = Instance.new("Frame")
+fill.Size = UDim2.new(0,0,1,0)
+fill.BackgroundColor3 = Color3.fromRGB(225,105,164)
+fill.BorderSizePixel = 0
+fill.ZIndex = 13
+fill.Parent = bar
+corner(fill,6)
+local pg = Instance.new("UIGradient")
+pg.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0,Color3.fromRGB(229,89,154)),
+	ColorSequenceKeypoint.new(.5,Color3.fromRGB(186,129,229)),
+	ColorSequenceKeypoint.new(1,Color3.fromRGB(104,202,184))
+})
+pg.Parent = fill
+local percent = status:Clone()
+percent.Name = "Percent"
+percent.Position = UDim2.new(.5,0,0,248)
+percent.Size = UDim2.new(1,-80,0,20)
+percent.Text = "0%"
+percent.TextSize = 11
+percent.Parent = card
+local start = os.clock()
+while true do
+	local a = math.clamp((os.clock()-start)/4,0,1)
+	fill.Size = UDim2.new(a,0,1,0)
+	percent.Text = string.format("%d%%",math.floor(a*100))
+	if a < .35 then
+		status.Text = "Preparing Saiki Music..."
+	elseif a < .7 then
+		status.Text = "Loading interface..."
+	elseif a < 1 then
+		status.Text = "Almost ready..."
+	else
+		status.Text = "Ready!"
+	end
+	if a >= 1 then break end
+	task.wait()
+end
+task.wait(.1)
+card:Destroy()
+local confirm = Instance.new("Frame")
+confirm.AnchorPoint = Vector2.new(.5,.5)
+confirm.Position = UDim2.fromScale(.5,.5)
+confirm.Size = UDim2.fromOffset(430,235)
+confirm.BackgroundColor3 = Color3.fromRGB(244,246,255)
+confirm.BorderSizePixel = 0
+confirm.ZIndex = 20
+confirm.Parent = gui
+corner(confirm,24)
+stroke(confirm,Color3.fromRGB(190,205,225),1.5,.12)
+gradient(confirm)
+shadow(confirm)
+local icon = Instance.new("ImageLabel")
+icon.AnchorPoint = Vector2.new(.5,0)
+icon.Position = UDim2.new(.5,0,0,22)
+icon.Size = UDim2.fromOffset(52,52)
+icon.BackgroundTransparency = 1
+icon.Image = PROFILE_IMAGE
+icon.ScaleType = Enum.ScaleType.Crop
+icon.ZIndex = 21
+icon.Parent = confirm
+corner(icon,26)
+local question = Instance.new("TextLabel")
+question.BackgroundTransparency = 1
+question.AnchorPoint = Vector2.new(.5,0)
+question.Position = UDim2.new(.5,0,0,82)
+question.Size = UDim2.new(1,-50,0,38)
+question.Font = Enum.Font.GothamBold
+question.Text = "Load Saiki Music !?"
+question.TextSize = 22
+question.TextColor3 = Color3.fromRGB(52,48,66)
+question.ZIndex = 21
+question.Parent = confirm
+local hint = question:Clone()
+hint.Position = UDim2.new(.5,0,0,120)
+hint.Size = UDim2.new(1,-60,0,24)
+hint.Font = Enum.Font.GothamMedium
+hint.Text = "Choose an option to continue."
+hint.TextSize = 12
+hint.TextColor3 = Color3.fromRGB(116,108,130)
+hint.Parent = confirm
+local yes = Instance.new("TextButton")
+yes.AnchorPoint = Vector2.new(1,0)
+yes.Position = UDim2.new(.5,-7,0,164)
+yes.Size = UDim2.fromOffset(160,42)
+yes.BackgroundColor3 = Color3.fromRGB(225,111,165)
+yes.BorderSizePixel = 0
+yes.Font = Enum.Font.GothamBold
+yes.Text = "Hell Yess"
+yes.TextSize = 13
+yes.TextColor3 = Color3.fromRGB(255,255,255)
+yes.AutoButtonColor = false
+yes.ZIndex = 22
+yes.Parent = confirm
+corner(yes,14)
+local no = yes:Clone()
+no.Name = "NahNvm"
+no.AnchorPoint = Vector2.new(0,0)
+no.Position = UDim2.new(.5,7,0,164)
+no.BackgroundColor3 = Color3.fromRGB(255,255,255)
+no.Text = "Nah Nvm"
+no.TextColor3 = Color3.fromRGB(72,66,82)
+no.Parent = confirm
+corner(no,14)
+stroke(no,Color3.fromRGB(201,194,211),1,.15)
+local done = false
+local continueLoading = false
+yes.MouseButton1Click:Connect(function()
+	if done then return end
+	done = true
+	continueLoading = true
+	gui:Destroy()
+end)
+local function request()
+	return (syn and syn.request) or (http and http.request) or http_request or request
+end
+local function githubImage()
+	local req = request()
+	if not req or not writefile or not getcustomasset then return nil end
+	local ok, res = pcall(function()
+		return req({Url=GITHUB_IMAGE,Method="GET"})
+	end)
+	if not ok or not res or type(res.Body) ~= "string" or #res.Body == 0 then
+		return nil
+	end
+	local file = "saiki_1147010598883426560.jpg"
+	local wrote = pcall(function()
+		if isfile and isfile(file) and delfile then delfile(file) end
+		writefile(file,res.Body)
+	end)
+	if not wrote then return nil end
+	local okAsset, asset = pcall(function()
+		return getcustomasset(file)
+	end)
+	return okAsset and asset or nil
+end
+no.MouseButton1Click:Connect(function()
+	if done then return end
+	done = true
+	confirm.Visible = false
+	local white = Instance.new("Frame")
+	white.Size = UDim2.fromScale(1,1)
+	white.BackgroundColor3 = Color3.fromRGB(255,255,255)
+	white.BorderSizePixel = 0
+	white.ZIndex = 100
+	white.Parent = gui
+	local img = Instance.new("ImageLabel")
+	img.AnchorPoint = Vector2.new(.5,.5)
+	img.Position = UDim2.fromScale(.5,.5)
+	img.Size = UDim2.fromOffset(500,500)
+	img.BackgroundTransparency = 1
+	img.ScaleType = Enum.ScaleType.Fit
+	img.ZIndex = 101
+	img.Parent = white
+	local asset = githubImage()
+	if asset then img.Image = asset end
+	local sound = Instance.new("Sound")
+	sound.SoundId = SOUND_ID
+	sound.Volume = 1
+	sound.Parent = SoundService
+	pcall(function() SoundService:PlayLocalSound(sound) end)
+	task.wait(5)
+	pcall(function()
+		sound:Stop()
+		sound:Destroy()
+	end)
+	gui:Destroy()
+	pcall(function()
+		LocalPlayer:Kick("Saiki Music declined.")
+	end)
+end)
+while not continueLoading do
+	task.wait()
+end
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+local ROSTER_URL =
+    "https://raw.githubusercontent.com/thedevilondiscord/DIVINE_scripts/refs/heads/main/jhgfdcvhjkmn.json"
+local FALLBACK_COVERS = {
+    10896067086,
+    10896091578,
+    87999143,
+    4660692057,
+    9391734556,
+    116387537,
+    1079754884,
+    674269867,
+    10918252942,
+    10432428953,
+    10432412750,
+    11513587720,
+    107054927997946,
+    103787031728249,
+    78731865032679
+}
+local FILE_PREFIX = "SAIKI_MUSIC_"
+local CATEGORIES = {
+    "Phonk",
+    "Hindi",
+    "Bhojpuri",
+    "English",
+    "Other",
+    "Liked"
+}
+local State = {
+    songs = {},
+    filtered = {},
+    category = "Phonk",
+    search = "",
+    current = nil,
+    index = 1,
+    playing = false,
+    liked = {},
+    playlists = {},
+    queue = {},
+    volume = 0.50,
+    loopMode = "Off",
+    shuffle = false,
+    skateboard = false,
+    segway = false,
+    vehicleMode = "Skateboard",
+    theme = "Light",
+    rgb = false,
+    rgbHue = 0,
+    coverRotation = 0,
+    destroyed = false
+}
+local function notify(title, text)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = 3
+        })
+    end)
+end
+local function safeJSONDecode(text)
+    if type(text) ~= "string" then
+        return nil
+    end
+    local ok, result = pcall(function()
+        return HttpService:JSONDecode(text)
+    end)
+    if ok and type(result) == "table" then
+        return result
+    end
+    return nil
+end
+local function fileAvailable()
+    return type(readfile) == "function"
+        and type(writefile) == "function"
+        and type(isfile) == "function"
+end
+local function loadLocal(name, fallback)
+    if not fileAvailable() then
+        return fallback
+    end
+    local path = FILE_PREFIX .. name .. ".json"
+    local existsOK, exists = pcall(isfile, path)
+    if not existsOK or not exists then
+        return fallback
+    end
+    local readOK, raw = pcall(readfile, path)
+    if not readOK or type(raw) ~= "string" then
+        return fallback
+    end
+    return safeJSONDecode(raw) or fallback
+end
+local function saveLocal(name, value)
+    if not fileAvailable() then
+        return
+    end
+    local path = FILE_PREFIX .. name .. ".json"
+    local ok, raw = pcall(function()
+        return HttpService:JSONEncode(value)
+    end)
+    if ok then
+        pcall(writefile, path, raw)
+    end
+end
+State.liked = loadLocal("likes", {})
+State.playlists = loadLocal("playlists", {})
+local savedSettings = loadLocal("settings", {})
+if type(savedSettings) == "table" then
+    if tonumber(savedSettings.volume) then
+        State.volume = math.clamp(
+            tonumber(savedSettings.volume),
+            0,
+            1
+        )
+    end
+    if savedSettings.vehicleMode == "Segway"
+        or savedSettings.vehicleMode == "Skateboard" then
+        State.vehicleMode = savedSettings.vehicleMode
+    end
+    if savedSettings.theme == "Dark"
+        or savedSettings.theme == "Light" then
+        State.theme = savedSettings.theme
+    end
+end
+local function saveSettings()
+    saveLocal("settings", {
+        volume = State.volume,
+        vehicleMode = State.vehicleMode,
+        theme = State.theme
+    })
+end
+local CustomRPName = "ðŸŽµ êœ±á´€Éªá´‹Éª á´á´œêœ±Éªá´„ ðŸŽµ"
+local CustomRPBio = tostring(LocalPlayer.DisplayName or LocalPlayer.Name or "")
+local function applyRPProfile()
+    task.spawn(function()
+        local reFolder = ReplicatedStorage:WaitForChild("RE", 10)
+        if not reFolder then
+            return
+        end
+        local rpRemote = reFolder:WaitForChild("1RPNam1eTex1t", 5)
+            or reFolder:FindFirstChild("RPNameText")
+            or reFolder:FindFirstChild("RPName")
+        if rpRemote then
+            pcall(function()
+                rpRemote:FireServer("RolePlayName", CustomRPName)
+                rpRemote:FireServer("RolePlayBio", CustomRPBio)
+            end)
+        end
+        local colorRemote = reFolder:WaitForChild("1RPNam1eColo1r", 5)
+            or reFolder:FindFirstChild("RPNameColor")
+        if colorRemote then
+            local rpColor = State.theme == "Dark"
+                and Color3.fromRGB(255, 255, 255)
+                or Color3.fromRGB(0, 0, 0)
+            pcall(function()
+                colorRemote:FireServer("PickingRPNameColor", rpColor)
+                colorRemote:FireServer("PickingRPBioColor", rpColor)
+            end)
+        end
+    end)
+end
+task.spawn(applyRPProfile)
+task.spawn(function()
+    local reFolder = ReplicatedStorage:WaitForChild("RE", 10)
+    if not reFolder then
+        return
+    end
+    local colorRemote = reFolder:WaitForChild("1RPNam1eColo1r", 5)
+        or reFolder:FindFirstChild("RPNameColor")
+    if not colorRemote then
+        return
+    end
+    local rainbowStart = tick()
+    while not State.destroyed do
+        local hue = ((tick() - rainbowStart) * 0.12) % 1
+        local rainbowColor = Color3.fromHSV(hue, 0.82, 1)
+        pcall(function()
+            colorRemote:FireServer("PickingRPNameColor", rainbowColor)
+            colorRemote:FireServer("PickingRPBioColor", rainbowColor)
+        end)
+        task.wait(0.10)
+    end
+end)
+local function httpGet(url)
+    local ok, result = pcall(function()
+        return game:HttpGet(url)
+    end)
+    if ok and type(result) == "string" then
+        return result
+    end
+    local requestFn =
+        (syn and syn.request)
+        or (http and http.request)
+        or http_request
+        or request
+    if type(requestFn) == "function" then
+        local success, response = pcall(function()
+            return requestFn({
+                Url = url,
+                Method = "GET"
+            })
+        end)
+        if success and response then
+            return response.Body or response.body
+        end
+    end
+    return nil
+end
+local function normalizeSong(item)
+    if type(item) ~= "table" then
+        return nil
+    end
+    local id =
+        item.id
+        or item.ID
+        or item.Id
+        or item.assetId
+        or item.AssetId
+    local name =
+        item.name
+        or item.Name
+        or item.title
+        or item.Title
+    local category =
+        item.category
+        or item.Category
+    local cover =
+        item.cover
+        or item.coverImage
+        or item.image
+        or item.thumbnail
+        or item.thumbnailId
+    if not id then
+        return nil
+    end
+    id = tostring(id)
+    if not id:match("^%d+$") then
+        return nil
+    end
+    name = tostring(
+        name
+        or "Untitled Track"
+    )
+    category = tostring(
+        category
+        or "Other"
+    )
+    if category ~= "Phonk"
+        and category ~= "Hindi"
+        and category ~= "Bhojpuri"
+        and category ~= "English"
+        and category ~= "Other" then
+        category = "Other"
+    end
+    return {
+        id = id,
+        name = name,
+        category = category,
+        cover = cover
+    }
+end
+local function loadRoster()
+    local raw = httpGet(ROSTER_URL)
+    if not raw then
+        notify(
+            "SAIKI MUSIC",
+            "Could not fetch the music roster."
+        )
+        return false
+    end
+    local data = safeJSONDecode(raw)
+    if not data then
+        notify(
+            "SAIKI MUSIC",
+            "Roster JSON could not be decoded."
+        )
+        return false
+    end
+    local source = data.songs
+    if type(source) ~= "table" then
+        source = data
+    end
+    if type(source) ~= "table" then
+        notify(
+            "SAIKI MUSIC",
+            "Roster has no songs."
+        )
+        return false
+    end
+    local songs = {}
+    local seen = {}
+    for _, item in ipairs(source) do
+        local song = normalizeSong(item)
+        if song and not seen[song.id] then
+            seen[song.id] = true
+            table.insert(songs, song)
+        end
+    end
+    State.songs = songs
+    return #songs > 0
+end
+if not loadRoster() then
+    State.songs = {
+        {
+            id = "14145620056",
+            name = "Phonk Vol 2 The Final Phonk",
+            category = "Phonk"
+        },
+        {
+            id = "14145623221",
+            name = "Phonk Vol 2 No Lights",
+            category = "Phonk"
+        },
+        {
+            id = "14145625743",
+            name = "Phonk Vol I Phonkt Out",
+            category = "Phonk"
+        }
+    }
+end
+pcall(function()
+    local oldGui =
+        game:GetService("CoreGui"):FindFirstChild(
+            "SAIKI_MUSIC_GUI"
+        )
+    if oldGui then
+        oldGui:Destroy()
+    end
+end)
+pcall(function()
+    local oldGui =
+        LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild(
+            "SAIKI_MUSIC_GUI"
+        )
+    if oldGui then
+        oldGui:Destroy()
+    end
+end)
+local function create(className, properties, parent)
+    local object = Instance.new(className)
+    for key, value in pairs(properties or {}) do
+        object[key] = value
+    end
+    object.Parent = parent
+    return object
+end
+local function makeLabel(
+    parent,
+    text,
+    size,
+    position,
+    font,
+    textSize
+)
+    return create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = text,
+        Size = size,
+        Position = position,
+        Font = font or Enum.Font.Gotham,
+        TextSize = textSize or 12,
+        TextColor3 = Color3.fromRGB(
+            60,
+            50,
+            70
+        ),
+        TextXAlignment =
+            Enum.TextXAlignment.Left,
+        TextYAlignment =
+            Enum.TextYAlignment.Center
+    }, parent)
+end
+local function defineButton(button, radius, thickness)
+    create("UICorner", {
+        CornerRadius = UDim.new(0, radius or 10)
+    }, button)
+    create("UIStroke", {
+        Thickness = thickness or 1,
+        Transparency = 0.72,
+        Color = Color3.fromRGB(125, 105, 140)
+    }, button)
+end
+local applyTheme
+local ScreenGui = create("ScreenGui", {
+    Name = "SAIKI_MUSIC_GUI",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    DisplayOrder = 20
+}, game:GetService("CoreGui"))
+if not ScreenGui.Parent then
+    ScreenGui.Parent =
+        LocalPlayer:WaitForChild("PlayerGui")
+end
+local Main = create("Frame", {
+    Name = "Main",
+    ZIndex = 10,
+    Size = UDim2.fromOffset(
+        620,
+        420
+    ),
+    Position = UDim2.new(
+        0.5,
+        -310,
+        0.5,
+        -210
+    ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            248,
+            245,
+            255
+        ),
+    BorderSizePixel = 0,
+    ClipsDescendants = true
+}, ScreenGui)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        18
+    )
+}, Main)
+local MainStroke = create("UIStroke", {
+    Thickness = 1.5,
+    Transparency = 0.10
+}, Main)
+local Gradient = create("UIGradient", {
+    Rotation = 25,
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(
+            0,
+            Color3.fromRGB(
+                255,
+                226,
+                241
+            )
+        ),
+        ColorSequenceKeypoint.new(
+            0.48,
+            Color3.fromRGB(
+                235,
+                226,
+                255
+            )
+        ),
+        ColorSequenceKeypoint.new(
+            1,
+            Color3.fromRGB(
+                213,
+                247,
+                241
+            )
+        )
+    })
+}, Main)
+local UIScale = create("UIScale", {
+    Scale = 1
+}, Main)
+local function updateScale()
+    local camera = workspace.CurrentCamera
+    if not camera then
+        return
+    end
+    local viewport = camera.ViewportSize
+    local scale = math.min(
+        viewport.X / 760,
+        viewport.Y / 520
+    )
+    UIScale.Scale = math.clamp(
+        scale,
+        0.70,
+        1
+    )
+end
+updateScale()
+if workspace.CurrentCamera then
+    workspace.CurrentCamera:GetPropertyChangedSignal(
+        "ViewportSize"
+    ):Connect(updateScale)
+end
+local Header = create("Frame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(
+        1,
+        0,
+        0,
+        54
+    )
+}, Main)
+local HeaderBrand = create("ImageLabel", {
+    Name = "HeaderBrand",
+    Size = UDim2.fromOffset(30, 30),
+    Position = UDim2.fromOffset(18, 19),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    Image = "rbxthumb://type=Asset&id=6379534047&w=150&h=150",
+    ScaleType = Enum.ScaleType.Fit,
+    ZIndex = 11
+}, Header)
+create("UICorner", {
+    CornerRadius = UDim.new(1, 0)
+}, HeaderBrand)
+local Title = makeLabel(
+    Header,
+    "SAIKI MUSIC",
+    UDim2.fromOffset(205, 38),
+    UDim2.fromOffset(170, 5),
+    Enum.Font.GothamBold,
+    18
+)
+local Subtitle = makeLabel(
+    Header,
+    "SPOTIFY â€¢ SAIKI EDITION",
+    UDim2.fromOffset(205, 18),
+    UDim2.fromOffset(171, 31),
+    Enum.Font.Gotham,
+    7
+)
+local SOCIAL_INSTAGRAM_IMAGE = "https://raw.githubusercontent.com/thedevilondiscord/Why-Do-u-hate-me-T-T-/main/icons8-instagram-48.png"
+local SOCIAL_DISCORD_IMAGE = "https://raw.githubusercontent.com/thedevilondiscord/Why-Do-u-hate-me-T-T-/main/dx.jpg"
+local SOCIAL_INSTAGRAM_URL = "https://www.instagram.com/saiki_hu_lol/"
+local SOCIAL_DISCORD_URL = "https://discord.gg/eWC3CSxkQM"
+local function socialRequest()
+    return (syn and syn.request) or (http and http.request) or http_request or request
+end
+local function downloadSocialAsset(url, fileName)
+    local req = socialRequest()
+    if not req or not writefile or not getcustomasset then
+        return nil
+    end
+    local ok, res = pcall(function()
+        return req({Url = url, Method = "GET"})
+    end)
+    if not ok or not res or type(res.Body) ~= "string" or #res.Body == 0 then
+        return nil
+    end
+    local wrote = pcall(function()
+        if isfile and isfile(fileName) and delfile then
+            delfile(fileName)
+        end
+        writefile(fileName, res.Body)
+    end)
+    if not wrote then
+        return nil
+    end
+    local okAsset, asset = pcall(function()
+        return getcustomasset(fileName)
+    end)
+    return okAsset and asset or nil
+end
+local function makeSocialButton(name, imageUrl, x, fileName)
+    local button = create("ImageButton", {
+        Name = name,
+        Position = UDim2.fromOffset(x, 11),
+        Size = UDim2.fromOffset(30, 30),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.28,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Image = "",
+        ScaleType = Enum.ScaleType.Fit,
+        ZIndex = 13,
+        Active = true
+    }, Header)
+    create("UICorner", {
+        CornerRadius = UDim.new(0, 10)
+    }, button)
+    local socialStroke = create("UIStroke", {
+        Thickness = 1,
+        Transparency = 0.28,
+        Color = Color3.fromRGB(215, 180, 205)
+    }, button)
+    local asset = downloadSocialAsset(imageUrl, fileName)
+    if asset then
+        button.Image = asset
+    end
+    button.MouseEnter:Connect(function()
+        button.BackgroundTransparency = 0.08
+        socialStroke.Transparency = 0.05
+    end)
+    button.MouseLeave:Connect(function()
+        button.BackgroundTransparency = 0.28
+        socialStroke.Transparency = 0.28
+    end)
+    return button
+end
+local InstagramButton = makeSocialButton(
+    "InstagramButton",
+    SOCIAL_INSTAGRAM_IMAGE,
+    380,
+    "saiki_instagram_icon.png"
+)
+local DiscordButton = makeSocialButton(
+    "DiscordButton",
+    SOCIAL_DISCORD_IMAGE,
+    416,
+    "saiki_discord_cover.jpg"
+)
+local function copySocialLink(url, label)
+    local copied = false
+    local fn = setclipboard or toclipboard or set_clipboard
+    if type(fn) == "function" then
+        copied = pcall(fn, url)
+    elseif syn and type(syn.write_clipboard) == "function" then
+        copied = pcall(syn.write_clipboard, url)
+    end
+    if copied then
+        notify("SAIKI MUSIC", "Copied to clipboard")
+    else
+        notify("SAIKI MUSIC", "Could not copy " .. label .. " link")
+    end
+end
+InstagramButton.Activated:Connect(function()
+    copySocialLink(SOCIAL_INSTAGRAM_URL, "Instagram")
+end)
+DiscordButton.Activated:Connect(function()
+    copySocialLink(SOCIAL_DISCORD_URL, "Discord")
+end)
+local StatusLabel = makeLabel(
+    Header,
+    tostring(#State.songs) .. " tracks",
+    UDim2.fromOffset(
+        150,
+        28
+    ),
+    UDim2.new(
+        1,
+        -205,
+        0,
+        11
+    ),
+    Enum.Font.GothamBold,
+    9
+)
+StatusLabel.TextXAlignment =
+    Enum.TextXAlignment.Right
+StatusLabel.Visible = false
+local anchored = false
+local AnchorCircle = create("Frame", {
+    Name = "AnchorCircle",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(1, -74, 0, 27),
+    Size = UDim2.fromOffset(32, 32),
+    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+    ZIndex = 11,
+    Active = false
+}, Header)
+create("UICorner", {
+    CornerRadius = UDim.new(1, 0)
+}, AnchorCircle)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.55,
+    Color = Color3.fromRGB(70, 70, 78)
+}, AnchorCircle)
+local AnchorButton = create("ImageButton", {
+    Name = "AnchorButton",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Size = UDim2.fromOffset(22, 22),
+    Position = UDim2.new(1, -74, 0, 27),
+    Image = "rbxthumb://type=Asset&id=127885604527086&w=150&h=150",
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    AutoButtonColor = false,
+    ScaleType = Enum.ScaleType.Fit,
+    ZIndex = 12,
+    Active = true
+}, Header)
+local function setAnchorState(value)
+    anchored = value
+    AnchorButton.Image = anchored
+        and "rbxthumb://type=Asset&id=116904016585445&w=150&h=150"
+        or "rbxthumb://type=Asset&id=127885604527086&w=150&h=150"
+end
+AnchorButton.Activated:Connect(function()
+    setAnchorState(not anchored)
+end)
+local ThemeButton = create("TextButton", {
+    Name = "ThemeButton",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(1, -111, 0, 27),
+    Size = UDim2.fromOffset(30, 30),
+    Text = "ðŸŒ™",
+    Font = Enum.Font.GothamBold,
+    TextSize = 17,
+    TextColor3 = Color3.fromRGB(65, 52, 72),
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BackgroundTransparency = 0.35,
+    BorderSizePixel = 0,
+    AutoButtonColor = false,
+    ZIndex = 12,
+    Active = true
+}, Header)
+create("UICorner", {
+    CornerRadius = UDim.new(1, 0)
+}, ThemeButton)
+local ThemeStroke = create("UIStroke", {
+    Thickness = 1.1,
+    Transparency = 0.25,
+    Color = Color3.fromRGB(215, 180, 205)
+}, ThemeButton)
+local ThemeTooltip = create("TextLabel", {
+    Name = "ThemeTooltip",
+    Size = UDim2.fromOffset(100, 20),
+    Position = UDim2.new(1, -164, 0, 46),
+    Text = "LIGHT THEME",
+    Font = Enum.Font.GothamBold,
+    TextSize = 7,
+    TextColor3 = Color3.fromRGB(90, 75, 100),
+    BackgroundTransparency = 1,
+    Visible = false,
+    ZIndex = 20
+}, Header)
+ThemeButton.MouseEnter:Connect(function()
+    ThemeTooltip.Visible = true
+end)
+ThemeButton.MouseLeave:Connect(function()
+    ThemeTooltip.Visible = false
+end)
+ThemeButton.Activated:Connect(function()
+    State.theme = State.theme == "Light" and "Dark" or "Light"
+    saveSettings()
+    if applyTheme then
+        applyTheme()
+    end
+end)
+local CloseButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        30,
+        30
+    ),
+    Position = UDim2.new(
+        1,
+        -40,
+        0,
+        11
+    ),
+    Text = "Ã—",
+    Font = Enum.Font.GothamBold,
+    TextSize = 18,
+    TextColor3 =
+        Color3.fromRGB(
+            70,
+            55,
+            75
+        ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.30,
+    BorderSizePixel = 0,
+    AutoButtonColor = false
+}, Header)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        1,
+        0
+    )
+}, CloseButton)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.76,
+    Color = Color3.fromRGB(135, 115, 150)
+}, CloseButton)
+local Nav = create("Frame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(
+        1,
+        -28,
+        0,
+        35
+    ),
+    Position = UDim2.fromOffset(
+        14,
+        55
+    )
+}, Main)
+local CategoryButtons = {}
+local function refreshCategoryButtons()
+    for name, button in pairs(
+        CategoryButtons
+    ) do
+        if State.category == name then
+            button.BackgroundTransparency = 0.03
+            button.TextColor3 =
+                Color3.fromRGB(
+                    55,
+                    42,
+                    65
+                )
+            button.TextSize = 9
+        else
+            button.BackgroundTransparency = 0.62
+            button.TextColor3 =
+                Color3.fromRGB(
+                    105,
+                    90,
+                    115
+                )
+            button.TextSize = 8
+        end
+    end
+end
+for index, name in ipairs(CATEGORIES) do
+    local button = create("TextButton", {
+        Size = UDim2.fromOffset(
+            91,
+            29
+        ),
+        Position = UDim2.fromOffset(
+            (index - 1) * 98,
+            2
+        ),
+        Text = name,
+        Font = Enum.Font.GothamBold,
+        TextSize = 8,
+        BackgroundColor3 =
+            Color3.fromRGB(
+                255,
+                255,
+                255
+            ),
+        BackgroundTransparency = 0.62,
+        BorderSizePixel = 0,
+        AutoButtonColor = false
+    }, Nav)
+    create("UICorner", {
+        CornerRadius = UDim.new(
+            0,
+            10
+        )
+    }, button)
+    create("UIStroke", {
+        Thickness = 1,
+        Transparency = 0.78,
+        Color = Color3.fromRGB(135, 115, 150)
+    }, button)
+    CategoryButtons[name] = button
+    button.Activated:Connect(function()
+        State.category = name
+        State.search = ""
+        refreshCategoryButtons()
+        renderList()
+    end)
+end
+local Search = create("TextBox", {
+    Size = UDim2.fromOffset(
+        250,
+        34
+    ),
+    Position = UDim2.fromOffset(
+        14,
+        94
+    ),
+    PlaceholderText =
+        "Search music...",
+    Text = "",
+    Font = Enum.Font.Gotham,
+    TextSize = 10,
+    TextColor3 =
+        Color3.fromRGB(
+            65,
+            55,
+            72
+        ),
+    PlaceholderColor3 =
+        Color3.fromRGB(
+            135,
+            125,
+            145
+        ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.28,
+    BorderSizePixel = 0,
+    ClearTextOnFocus = false
+}, Main)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        11
+    )
+}, Search)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.76,
+    Color = Color3.fromRGB(135, 115, 150)
+}, Search)
+local List = create("ScrollingFrame", {
+    Size = UDim2.fromOffset(
+        250,
+        274
+    ),
+    Position = UDim2.fromOffset(
+        14,
+        134
+    ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.42,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 4,
+    ScrollBarImageTransparency = 0.45,
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize =
+        Enum.AutomaticSize.Y,
+    ScrollingDirection =
+        Enum.ScrollingDirection.Y
+}, Main)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        12
+    )
+}, List)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.72,
+    Color = Color3.fromRGB(135, 115, 150)
+}, List)
+local ListPadding = create(
+    "UIPadding",
+    {
+        PaddingTop = UDim.new(
+            0,
+            5
+        ),
+        PaddingBottom = UDim.new(
+            0,
+            5
+        ),
+        PaddingLeft = UDim.new(
+            0,
+            5
+        ),
+        PaddingRight = UDim.new(
+            0,
+            5
+        )
+    },
+    List
+)
+local ListLayout = create(
+    "UIListLayout",
+    {
+        Padding = UDim.new(
+            0,
+            4
+        ),
+        SortOrder =
+            Enum.SortOrder.LayoutOrder
+    },
+    List
+)
+local PlayerPanel = create("Frame", {
+    Size = UDim2.fromOffset(
+        328,
+        314
+    ),
+    Position = UDim2.fromOffset(
+        278,
+        94
+    ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.38,
+    BorderSizePixel = 0
+}, Main)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        15
+    )
+}, PlayerPanel)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.70,
+    Color = Color3.fromRGB(135, 115, 150)
+}, PlayerPanel)
+local Cover = create("ImageLabel", {
+    Size = UDim2.fromOffset(
+        136,
+        136
+    ),
+    Position = UDim2.fromOffset(
+        16,
+        16
+    ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            238,
+            225,
+            245
+        ),
+    BackgroundTransparency = 0,
+    BorderSizePixel = 0,
+    Image =
+        "rbxassetid://" ..
+        FALLBACK_COVERS[1],
+    ScaleType =
+        Enum.ScaleType.Crop
+}, PlayerPanel)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        1,
+        0
+    )
+}, Cover)
+local CoverStroke = create("UIStroke", {
+    Thickness = 2,
+    Transparency = 0.15
+}, Cover)
+local CoverGlow = create("Frame", {
+    Size = UDim2.fromOffset(
+        146,
+        146
+    ),
+    Position = UDim2.fromOffset(
+        11,
+        11
+    ),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ZIndex = 0
+}, PlayerPanel)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        1,
+        0
+    )
+}, CoverGlow)
+local SongTitle = makeLabel(
+    PlayerPanel,
+    "Nothing playing",
+    UDim2.fromOffset(158, 52),
+    UDim2.fromOffset(163, 67),
+    Enum.Font.GothamBold,
+    14
+)
+SongTitle.TextWrapped = true
+SongTitle.TextTruncate =
+    Enum.TextTruncate.AtEnd
+local LikeButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        32,
+        30
+    ),
+    Position = UDim2.fromOffset(
+        279,
+        13
+    ),
+    Text = "â™¡",
+    Font = Enum.Font.GothamBold,
+    TextSize = 21,
+    TextColor3 =
+        Color3.fromRGB(
+            215,
+            85,
+            135
+        ),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0
+}, PlayerPanel)
+local Prev = create("TextButton", {
+    Size = UDim2.fromOffset(
+        42,
+        38
+    ),
+    Position = UDim2.fromOffset(
+        58,
+        167
+    ),
+    Text = "â€¹â€¹",
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.20,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            70,
+            57,
+            75
+        )
+}, PlayerPanel)
+local Play = create("TextButton", {
+    Size = UDim2.fromOffset(
+        55,
+        44
+    ),
+    Position = UDim2.fromOffset(
+        110,
+        164
+    ),
+    Text = "â–¶",
+    Font = Enum.Font.GothamBold,
+    TextSize = 17,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            235,
+            200,
+            225
+        ),
+    BackgroundTransparency = 0.05,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            65,
+            50,
+            70
+        )
+}, PlayerPanel)
+local Next = create("TextButton", {
+    Size = UDim2.fromOffset(
+        42,
+        38
+    ),
+    Position = UDim2.fromOffset(
+        175,
+        167
+    ),
+    Text = "â€ºâ€º",
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.20,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            70,
+            57,
+            75
+        )
+}, PlayerPanel)
+local ShuffleButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        42,
+        38
+    ),
+    Position = UDim2.fromOffset(
+        225,
+        167
+    ),
+    Text = "â†»",
+    Font = Enum.Font.GothamBold,
+    TextSize = 18,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.35,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            100,
+            83,
+            110
+        )
+}, PlayerPanel)
+for _, button in ipairs({
+    Prev,
+    Play,
+    Next,
+    ShuffleButton
+}) do
+    create("UICorner", {
+        CornerRadius = UDim.new(
+            0,
+            11
+        )
+    }, button)
+end
+for _, button in ipairs({
+    Prev,
+    Play,
+    Next,
+    ShuffleButton
+}) do
+    create("UIStroke", {
+        Thickness = 1,
+        Transparency = 0.68,
+        Color = Color3.fromRGB(125, 105, 140)
+    }, button)
+end
+local PlaylistButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        92,
+        30
+    ),
+    Position = UDim2.fromOffset(
+        34,
+        215
+    ),
+    Text = "+ PLAYLIST",
+    Font = Enum.Font.GothamBold,
+    TextSize = 8,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            238,
+            226,
+            247
+        ),
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            75,
+            59,
+            82
+        )
+}, PlayerPanel)
+local QueueButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        82,
+        30
+    ),
+    Position = UDim2.fromOffset(
+        134,
+        215
+    ),
+    Text = "+ QUEUE",
+    Font = Enum.Font.GothamBold,
+    TextSize = 8,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            226,
+            241,
+            239
+        ),
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            68,
+            87,
+            82
+        )
+}, PlayerPanel)
+local LoopButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        70,
+        30
+    ),
+    Position = UDim2.fromOffset(
+        224,
+        215
+    ),
+    Text = "ðŸ”",
+    Font = Enum.Font.GothamBold,
+    TextSize = 8,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            238,
+            246
+        ),
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            90,
+            65,
+            82
+        )
+}, PlayerPanel)
+for _, button in ipairs({
+    PlaylistButton,
+    QueueButton,
+    LoopButton
+}) do
+    create("UICorner", {
+        CornerRadius = UDim.new(
+            0,
+            9
+        )
+    }, button)
+end
+for _, button in ipairs({
+    PlaylistButton,
+    QueueButton,
+    LoopButton
+}) do
+    create("UIStroke", {
+        Thickness = 1,
+        Transparency = 0.68,
+        Color = Color3.fromRGB(125, 105, 140)
+    }, button)
+end
+makeLabel(
+    PlayerPanel,
+    "VOL",
+    UDim2.fromOffset(
+        35,
+        24
+    ),
+    UDim2.fromOffset(
+        20,
+        253
+    ),
+    Enum.Font.GothamBold,
+    8
+)
+local Volume = create("TextBox", {
+    Size = UDim2.fromOffset(
+        54,
+        25
+    ),
+    Position = UDim2.fromOffset(
+        52,
+        252
+    ),
+    Text = tostring(
+        math.floor(
+            State.volume * 100
+        )
+    ),
+    Font = Enum.Font.Gotham,
+    TextSize = 9,
+    TextColor3 =
+        Color3.fromRGB(
+            65,
+            55,
+            70
+        ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.25,
+    BorderSizePixel = 0,
+    ClearTextOnFocus = false
+}, PlayerPanel)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        7
+    )
+}, Volume)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.76,
+    Color = Color3.fromRGB(125, 105, 140)
+}, Volume)
+local SkateButton = create("TextButton", {
+    Size = UDim2.fromOffset(103, 30),
+    Position = UDim2.fromOffset(114, 250),
+    Text = "â—† SKATE",
+    Font = Enum.Font.GothamBold,
+    TextSize = 8,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.20,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            75,
+            60,
+            82
+        ),
+    AutoButtonColor = false
+}, PlayerPanel)
+local SegwayButton = create("TextButton", {
+    Size = UDim2.fromOffset(103, 30),
+    Position = UDim2.fromOffset(222, 250),
+    Text = "â—† SEGWAY",
+    Font = Enum.Font.GothamBold,
+    TextSize = 8,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.20,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            75,
+            60,
+            82
+        ),
+    AutoButtonColor = false
+}, PlayerPanel)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        9
+    )
+}, SkateButton)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        9
+    )
+}, SegwayButton)
+for _, button in ipairs({SkateButton, SegwayButton}) do
+    create("UIStroke", {
+        Thickness = 1,
+        Transparency = 0.68,
+        Color = Color3.fromRGB(125, 105, 140)
+    }, button)
+end
+local RGBButton = create("TextButton", {
+    Size = UDim2.fromOffset(
+        93,
+        28
+    ),
+    Position = UDim2.fromOffset(
+        20,
+        282
+    ),
+    Text = "âœ¦ RGB OFF",
+    Font = Enum.Font.GothamBold,
+    TextSize = 8,
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            255,
+            255
+        ),
+    BackgroundTransparency = 0.25,
+    BorderSizePixel = 0,
+    TextColor3 =
+        Color3.fromRGB(
+            75,
+            60,
+            82
+        )
+}, PlayerPanel)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        9
+    )
+}, RGBButton)
+create("UIStroke", {
+    Thickness = 1,
+    Transparency = 0.68,
+    Color = Color3.fromRGB(125, 105, 140)
+}, RGBButton)
+local VehicleStatus = makeLabel(
+    PlayerPanel,
+    "Vehicle: Skateboard",
+    UDim2.fromOffset(
+        170,
+        20
+    ),
+    UDim2.fromOffset(
+        120,
+        285
+    ),
+    Enum.Font.Gotham,
+    7
+)
+VehicleStatus.TextXAlignment =
+    Enum.TextXAlignment.Right
+pcall(function()
+    local oldAmbient = game:GetService("CoreGui"):FindFirstChild("SAIKI_AMBIENT")
+    if oldAmbient then
+        oldAmbient:Destroy()
+    end
+end)
+pcall(function()
+    local oldAmbient = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("SAIKI_AMBIENT")
+    if oldAmbient then
+        oldAmbient:Destroy()
+    end
+end)
+local AmbientGui = create("ScreenGui", {
+    Name = "SAIKI_AMBIENT",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    DisplayOrder = 10
+}, game:GetService("CoreGui"))
+if not AmbientGui.Parent then
+    AmbientGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+local AmbientLayer = create("Frame", {
+    Name = "CherryBlossomLayer",
+    Size = UDim2.fromScale(1, 1),
+    Position = UDim2.fromScale(0, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    Active = false,
+    Visible = true,
+    ZIndex = 1
+}, AmbientGui)
+local BlurEffect = Lighting:FindFirstChild("SAIKI_GUI_BLUR")
+if not BlurEffect or not BlurEffect:IsA("BlurEffect") then
+    if BlurEffect then
+        BlurEffect:Destroy()
+    end
+    BlurEffect = Instance.new("BlurEffect")
+    BlurEffect.Name = "SAIKI_GUI_BLUR"
+    BlurEffect.Size = 0
+    BlurEffect.Parent = Lighting
+end
+local CHERRY_LEAVES = {
+    "rbxthumb://type=Asset&id=138495845541885&w=420&h=420",
+    "rbxthumb://type=Asset&id=98467848507036&w=420&h=420",
+    "rbxthumb://type=Asset&id=125300690495092&w=420&h=420"
+}
+local SNOW_FLAKES = {
+    "rbxthumb://type=Asset&id=103375221051022&w=420&h=420",
+    "rbxthumb://type=Asset&id=138994720&w=420&h=420"
+}
+local cherryLeaves = {}
+local cherryRandom = Random.new()
+local cherryFade = 0
+local cherryVisible = true
+for i = 1, 24 do
+    local leaf = create("ImageLabel", {
+        Name = "CherryLeaf_" .. tostring(i),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.fromOffset(cherryRandom:NextInteger(14, 30), cherryRandom:NextInteger(14, 30)),
+        Position = UDim2.new(cherryRandom:NextNumber(0, 1), 0, cherryRandom:NextNumber(-0.20, 1), 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Image = CHERRY_LEAVES[((i - 1) % #CHERRY_LEAVES) + 1],
+        ImageTransparency = cherryRandom:NextNumber(0.02, 0.12),
+        Rotation = cherryRandom:NextNumber(0, 360),
+        ZIndex = 1,
+        Active = false
+    }, AmbientLayer)
+    table.insert(cherryLeaves, {
+        object = leaf,
+        x = cherryRandom:NextNumber(0, 1),
+        y = leaf.Position.Y.Scale,
+        speed = cherryRandom:NextNumber(0.045, 0.095),
+        sway = cherryRandom:NextNumber(0.012, 0.035),
+        swaySpeed = cherryRandom:NextNumber(0.8, 1.7),
+        phase = cherryRandom:NextNumber(0, math.pi * 2),
+        rotationSpeed = cherryRandom:NextNumber(-75, 75),
+        snowRotationSpeed = cherryRandom:NextNumber(-10, 10),
+        baseTransparency = cherryRandom:NextNumber(0.02, 0.12)
+    })
+end
+local function setAmbientVisible(visible)
+    cherryVisible = visible
+    if visible then
+        cherryFade = 0
+        AmbientLayer.Visible = true
+        for _, leafData in ipairs(cherryLeaves) do
+            leafData.object.ImageTransparency = leafData.baseTransparency
+        end
+        BlurEffect.Enabled = true
+        BlurEffect.Size = 0
+        TweenService:Create(BlurEffect, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = 16
+        }):Play()
+    else
+        cherryFade = 1
+        TweenService:Create(BlurEffect, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = 0
+        }):Play()
+        task.delay(0.45, function()
+            if not cherryVisible then
+                BlurEffect.Enabled = false
+                AmbientLayer.Visible = false
+            end
+        end)
+    end
+end
+setAmbientVisible(true)
+local HideButton = create("ImageButton", {
+    Name = "HideButton",
+    Size = UDim2.fromOffset(
+        48,
+        48
+    ),
+    Position = UDim2.new(
+        0,
+        19,
+        0.5,
+        -24
+    ),
+    Image = "rbxthumb://type=Asset&id=70808011490332&w=420&h=420",
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    AutoButtonColor = false,
+    ScaleType = Enum.ScaleType.Crop
+}, ScreenGui)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        1,
+        0
+    )
+}, HideButton)
+create("UIStroke", {
+    Thickness = 1.3,
+    Transparency = 0.15
+}, HideButton)
+local Toast = create("TextLabel", {
+    Size = UDim2.fromOffset(
+        270,
+        32
+    ),
+    Position = UDim2.new(
+        0.5,
+        -135,
+        1,
+        8
+    ),
+    Text = "",
+    Visible = false,
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 =
+        Color3.fromRGB(
+            65,
+            52,
+            72
+        ),
+    BackgroundColor3 =
+        Color3.fromRGB(
+            255,
+            235,
+            246
+        ),
+    BackgroundTransparency = 0.04,
+    BorderSizePixel = 0,
+    ZIndex = 100
+}, Main)
+create("UICorner", {
+    CornerRadius = UDim.new(
+        0,
+        10
+    )
+}, Toast)
+local themeOriginals = {}
+local function rememberThemeObject(object)
+    if themeOriginals[object] then
+        return
+    end
+    themeOriginals[object] = {}
+    if object:IsA("GuiObject") then
+        themeOriginals[object].BackgroundColor3 = object.BackgroundColor3
+        themeOriginals[object].BackgroundTransparency = object.BackgroundTransparency
+    end
+    if object:IsA("TextLabel")
+        or object:IsA("TextButton")
+        or object:IsA("TextBox") then
+        themeOriginals[object].TextColor3 = object.TextColor3
+    end
+    if object:IsA("TextBox") then
+        themeOriginals[object].PlaceholderColor3 = object.PlaceholderColor3
+    end
+    if object:IsA("UIStroke") then
+        themeOriginals[object].Color = object.Color
+        themeOriginals[object].Transparency = object.Transparency
+    end
+end
+local function themeRememberTree()
+    rememberThemeObject(Main)
+    for _, object in ipairs(Main:GetDescendants()) do
+        rememberThemeObject(object)
+    end
+end
+local function restoreLightTheme()
+    for object, original in pairs(themeOriginals) do
+        if object and object.Parent then
+            if original.BackgroundColor3 then
+                object.BackgroundColor3 = original.BackgroundColor3
+                object.BackgroundTransparency = original.BackgroundTransparency
+            end
+            if original.TextColor3 then
+                object.TextColor3 = original.TextColor3
+            end
+            if original.PlaceholderColor3 then
+                object.PlaceholderColor3 = original.PlaceholderColor3
+            end
+            if original.Color then
+                object.Color = original.Color
+                object.Transparency = original.Transparency
+            end
+        end
+    end
+end
+applyTheme = function()
+    themeRememberTree()
+    local dark = State.theme == "Dark"
+    if not dark then
+        restoreLightTheme()
+        ThemeButton.Text = "ðŸŒ™"
+        ThemeButton.TextColor3 = Color3.fromRGB(65, 52, 72)
+        ThemeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        ThemeButton.BackgroundTransparency = 0.35
+        ThemeStroke.Color = Color3.fromRGB(215, 180, 205)
+        ThemeTooltip.Text = "LIGHT THEME"
+        for i, leafData in ipairs(cherryLeaves) do
+            leafData.object.Image = CHERRY_LEAVES[((i - 1) % #CHERRY_LEAVES) + 1]
+            leafData.object.ImageTransparency = math.clamp(leafData.baseTransparency - 0.10, 0.05, 0.88)
+            leafData.object.ImageColor3 = Color3.fromRGB(255, 150, 205)
+        end
+    else
+        local darkBase = Color3.fromRGB(13, 16, 25)
+        local darkSurface = Color3.fromRGB(24, 28, 42)
+        local darkRaised = Color3.fromRGB(31, 36, 54)
+        local textMain = Color3.fromRGB(242, 235, 246)
+        local textMuted = Color3.fromRGB(171, 163, 185)
+        local accent = Color3.fromRGB(221, 105, 163)
+        for _, object in ipairs(Main:GetDescendants()) do
+            if object:IsA("TextLabel")
+                or object:IsA("TextButton")
+                or object:IsA("TextBox") then
+                object.TextColor3 = textMain
+                if object:IsA("TextBox") then
+                    object.PlaceholderColor3 = textMuted
+                end
+            end
+            if object:IsA("GuiObject")
+                and object ~= Header
+                and object ~= Nav
+                and not object:IsA("ImageLabel")
+                and not object:IsA("ImageButton") then
+                if object == Main then
+                    object.BackgroundColor3 = darkBase
+                elseif object.Name == "Play" then
+                    object.BackgroundColor3 = Color3.fromRGB(112, 49, 82)
+                elseif object:IsA("TextButton")
+                    or object:IsA("TextBox") then
+                    object.BackgroundColor3 = darkRaised
+                    object.BackgroundTransparency = 0.04
+                else
+                    object.BackgroundColor3 = darkSurface
+                end
+            end
+            if object:IsA("UIStroke") then
+                object.Color = Color3.fromRGB(150, 108, 157)
+                object.Transparency = 0.04
+                object.Thickness = math.max(object.Thickness, 1)
+            end
+        end
+        ThemeButton.Text = "â˜€"
+        ThemeButton.TextColor3 = textMain
+        ThemeButton.BackgroundColor3 = darkRaised
+        ThemeButton.BackgroundTransparency = 0.05
+        ThemeStroke.Color = accent
+        ThemeTooltip.Text = "DARK THEME"
+        for i, leafData in ipairs(cherryLeaves) do
+            leafData.object.Image = SNOW_FLAKES[((i - 1) % #SNOW_FLAKES) + 1]
+            leafData.object.ImageTransparency = math.clamp(leafData.baseTransparency - 0.16, 0.02, 0.72)
+            leafData.object.ImageColor3 = Color3.fromRGB(255, 255, 255)
+            leafData.rotationSpeed = leafData.snowRotationSpeed
+        end
+    end
+    AnchorCircle.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    AnchorCircle.BackgroundTransparency = 0.08
+    if not anchored then
+        setAnchorState(false)
+    else
+        setAnchorState(true)
+    end
+end
+local toastSerial = 0
+local function showToast(text)
+    toastSerial += 1
+    local thisToast = toastSerial
+    Toast.Text = tostring(text)
+    Toast.Visible = true
+    Toast.Position = UDim2.new(
+        0.5,
+        -135,
+        1,
+        8
+    )
+    TweenService:Create(
+        Toast,
+        TweenInfo.new(
+            0.20,
+            Enum.EasingStyle.Quad
+        ),
+        {
+            Position = UDim2.new(
+                0.5,
+                -135,
+                1,
+                -42
+            )
+        }
+    ):Play()
+    task.delay(2.1, function()
+        if thisToast ~= toastSerial then
+            return
+        end
+        TweenService:Create(
+            Toast,
+            TweenInfo.new(
+                0.20
+            ),
+            {
+                Position = UDim2.new(
+                    0.5,
+                    -135,
+                    1,
+                    8
+                )
+            }
+        ):Play()
+        task.wait(0.2)
+        if thisToast == toastSerial then
+            Toast.Visible = false
+        end
+    end)
+end
+local function makeDraggable(guiObject, handle)
+    handle = handle or guiObject
+    local dragging = false
+    local dragStart
+    local startPosition
+    handle.InputBegan:Connect(function(input)
+        if anchored then
+            return
+        end
+        if input.UserInputType ==
+            Enum.UserInputType.MouseButton1
+            or input.UserInputType ==
+            Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPosition =
+                guiObject.Position
+            local connection
+            connection =
+                input.Changed:Connect(function()
+                    if input.UserInputState ==
+                        Enum.UserInputState.End then
+                        dragging = false
+                        if connection then
+                            connection:Disconnect()
+                        end
+                    end
+                end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then
+            return
+        end
+        if input.UserInputType ~=
+            Enum.UserInputType.MouseMovement
+            and input.UserInputType ~=
+            Enum.UserInputType.Touch then
+            return
+        end
+        local delta =
+            input.Position - dragStart
+        guiObject.Position =
+            UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
+    end)
+end
+makeDraggable(
+    Main,
+    Header
+)
+makeDraggable(
+    HideButton,
+    HideButton
+)
+local oldSound =
+    SoundService:FindFirstChild(
+        "SAIKI_MUSIC_PLAYER"
+    )
+if oldSound then
+    pcall(function()
+        oldSound:Destroy()
+    end)
+end
+local MusicSound = Instance.new("Sound")
+MusicSound.Name =
+    "SAIKI_MUSIC_PLAYER"
+MusicSound.Volume = 0
+MusicSound.Looped = false
+MusicSound.Parent =
+    SoundService
+local function updateFilter()
+    local query =
+        string.lower(
+            State.search or ""
+        )
+    State.filtered = {}
+    for _, song in ipairs(
+        State.songs
+    ) do
+        local categoryOK = false
+        if State.category == "Liked" then
+            categoryOK =
+                State.liked[song.id] == true
+        else
+            categoryOK =
+                song.category ==
+                State.category
+        end
+        if categoryOK then
+            local searchable =
+                string.lower(
+                    tostring(song.name)
+                    .. " "
+                    .. tostring(song.id)
+                )
+            if query == ""
+                or string.find(
+                    searchable,
+                    query,
+                    1,
+                    true
+                ) then
+                table.insert(
+                    State.filtered,
+                    song
+                )
+            end
+        end
+    end
+end
+local function getFallbackCover(song)
+    local number =
+        tonumber(song.id)
+        or 0
+    local index =
+        (number %
+            #FALLBACK_COVERS)
+        + 1
+    return FALLBACK_COVERS[index]
+end
+local coverRequest = 0
+local function setCover(song)
+    coverRequest += 1
+    local requestNumber =
+        coverRequest
+    local fallback =
+        getFallbackCover(song)
+    Cover.Image =
+        "rbxthumb://type=Asset&id="
+        .. tostring(song.id)
+        .. "&w=420&h=420"
+    local connection
+    connection =
+        Cover.ImageFailed:Connect(function()
+            if requestNumber ~= coverRequest then
+                return
+            end
+            Cover.Image =
+                "rbxassetid://"
+                .. tostring(fallback)
+            if connection then
+                connection:Disconnect()
+            end
+        end)
+    task.delay(
+        3,
+        function()
+            if connection then
+                connection:Disconnect()
+            end
+            if requestNumber ~= coverRequest then
+                return
+            end
+            if Cover.Image == "" then
+                Cover.Image =
+                    "rbxassetid://"
+                    .. tostring(fallback)
+            end
+        end
+    )
+end
+local function updateLikeVisual()
+    if State.current
+        and State.liked[
+            State.current.id
+        ] then
+        LikeButton.Text = "â™¥"
+        LikeButton.TextColor3 =
+            Color3.fromRGB(
+                225,
+                75,
+                135
+            )
+    else
+        LikeButton.Text = "â™¡"
+        LikeButton.TextColor3 =
+            Color3.fromRGB(
+                145,
+                90,
+                125
+            )
+    end
+end
+local function clearList()
+    for _, child in ipairs(
+        List:GetChildren()
+    ) do
+        if child:IsA("GuiButton")
+            or child:IsA("Frame")
+            or child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+end
+local RE =
+    ReplicatedStorage:FindFirstChild("RE")
+local VehicleRemote
+if RE then
+    VehicleRemote =
+        RE:FindFirstChild(
+            "1NoMoto1rVehicle1s"
+        )
+end
+local CarRemote
+if RE then
+    CarRemote =
+        RE:FindFirstChild(
+            "1Player1sCa1r"
+        )
+end
+local function refreshRemotes()
+    RE =
+        ReplicatedStorage:FindFirstChild(
+            "RE"
+        )
+    if RE then
+        VehicleRemote =
+            RE:FindFirstChild(
+                "1NoMoto1rVehicle1s"
+            )
+        CarRemote =
+            RE:FindFirstChild(
+                "1Player1sCa1r"
+            )
+    end
+end
+local function fireRemote(
+    remote,
+    ...
+)
+    if not remote then
+        return false
+    end
+    local args = {...}
+    local ok = pcall(function()
+        if remote:IsA(
+            "RemoteEvent"
+        ) then
+            remote:FireServer(
+                unpack(args)
+            )
+        elseif remote:IsA(
+            "RemoteFunction"
+        ) then
+            remote:InvokeServer(
+                unpack(args)
+            )
+        end
+    end)
+    return ok
+end
+local function spawnSkateboard()
+    refreshRemotes()
+    if not VehicleRemote then
+        return false
+    end
+    return fireRemote(
+        VehicleRemote,
+        "SkateBoard"
+    )
+end
+local function spawnSegway()
+    refreshRemotes()
+    if not VehicleRemote then
+        return false
+    end
+    return fireRemote(
+        VehicleRemote,
+        "SegwaySmall"
+    )
+end
+local function vehiclePlayMusic(id)
+    refreshRemotes()
+    if not VehicleRemote then
+        notify(
+            "SAIKI MUSIC",
+            "Brookhaven vehicle remote not found."
+        )
+        return false
+    end
+    local success =
+        fireRemote(
+            VehicleRemote,
+            "PickingScooterMusicText",
+            tostring(id),
+            nil,
+            true
+        )
+    if CarRemote then
+        fireRemote(
+            CarRemote,
+            "Music",
+            tostring(id),
+            nil,
+            true
+        )
+        fireRemote(
+            CarRemote,
+            "VehicleMusicText",
+            tostring(id),
+            nil,
+            true
+        )
+    end
+    return success
+end
+local function vehicleStopMusic()
+    refreshRemotes()
+    if VehicleRemote then
+        fireRemote(
+            VehicleRemote,
+            "PickingScooterMusicText",
+            "0",
+            nil,
+            true
+        )
+    end
+    if CarRemote then
+        fireRemote(
+            CarRemote,
+            "Music",
+            "0",
+            nil,
+            true
+        )
+        fireRemote(
+            CarRemote,
+            "VehicleMusicText",
+            "0",
+            nil,
+            true
+        )
+    end
+end
+local function ensureVehicle()
+    if State.skateboard
+        or State.segway then
+        return true
+    end
+    State.vehicleMode =
+        "Skateboard"
+    State.skateboard = true
+    State.segway = false
+    spawnSkateboard()
+    SkateButton.Text =
+        "ðŸ›¹ SKATE: ON"
+    SegwayButton.Text =
+        "âš¡ SEGWAY: OFF"
+    VehicleStatus.Text =
+        "Vehicle: Skateboard"
+    saveSettings()
+    return true
+end
+local function toggleSkateboard()
+    if State.skateboard then
+        State.skateboard = false
+        SkateButton.Text =
+            "ðŸ›¹ SKATE: OFF"
+        if State.segway then
+            State.vehicleMode =
+                "Segway"
+        else
+            State.vehicleMode =
+                "Skateboard"
+        end
+        vehicleStopMusic()
+        showToast(
+            "Skateboard OFF"
+        )
+    else
+        State.skateboard = true
+        State.segway = false
+        State.vehicleMode =
+            "Skateboard"
+        spawnSkateboard()
+        SkateButton.Text =
+            "ðŸ›¹ SKATE: ON"
+        SegwayButton.Text =
+            "âš¡ SEGWAY: OFF"
+        VehicleStatus.Text =
+            "Vehicle: Skateboard"
+        if State.current then
+            vehiclePlayMusic(
+                State.current.id
+            )
+        end
+        showToast(
+            "Skateboard selected"
+        )
+    end
+    saveSettings()
+end
+local function toggleSegway()
+    if State.segway then
+        State.segway = false
+        SegwayButton.Text =
+            "âš¡ SEGWAY: OFF"
+        State.vehicleMode =
+            "Segway"
+        vehicleStopMusic()
+        showToast(
+            "Segway OFF"
+        )
+    else
+        State.segway = true
+        State.skateboard = false
+        State.vehicleMode =
+            "Segway"
+        spawnSegway()
+        SkateButton.Text =
+            "ðŸ›¹ SKATE: OFF"
+        SegwayButton.Text =
+            "âš¡ SEGWAY: ON"
+        VehicleStatus.Text =
+            "Vehicle: Segway"
+        if State.current then
+            vehiclePlayMusic(
+                State.current.id
+            )
+        end
+        showToast(
+            "Segway selected"
+        )
+    end
+    saveSettings()
+end
+local function setVehicleRGB()
+    State.rgb =
+        not State.rgb
+    RGBButton.Text =
+        State.rgb
+        and "ðŸŒˆ RGB ON"
+        or "ðŸŒˆ RGB OFF"
+    if not State.rgb then
+        showToast(
+            "Vehicle RGB OFF"
+        )
+        return
+    end
+    showToast(
+        "Vehicle RGB ON"
+    )
+end
+local function updateVehicleRGB()
+    if not State.rgb then
+        return
+    end
+    State.rgbHue =
+        (State.rgbHue + 0.008)
+        % 1
+    local color =
+        Color3.fromHSV(
+            State.rgbHue,
+            1,
+            1
+        )
+    refreshRemotes()
+    if CarRemote then
+        fireRemote(
+            CarRemote,
+            "NoMotorColor",
+            color
+        )
+    end
+    local remotesFolder =
+        ReplicatedStorage:FindFirstChild(
+            "Remotes"
+        )
+    if remotesFolder then
+        local colorRemote =
+            remotesFolder:FindFirstChild(
+                "SetUnderglowColor"
+            )
+        if colorRemote then
+            fireRemote(
+                colorRemote,
+                1,
+                color
+            )
+        end
+        local underglow =
+            remotesFolder:FindFirstChild(
+                "SetUnderglow"
+            )
+        if underglow then
+            fireRemote(
+                underglow,
+                "ShockWave"
+            )
+        end
+        local sizeRemote =
+            remotesFolder:FindFirstChild(
+                "SetUnderglowSize"
+            )
+        if sizeRemote then
+            fireRemote(
+                sizeRemote,
+                1.5,
+                1.5
+            )
+        end
+    end
+end
+local function updatePlayerUI()
+    if not State.current then
+        SongTitle.Text =
+            "Nothing playing"
+        Cover.Image =
+            "rbxassetid://"
+            .. FALLBACK_COVERS[1]
+        Play.Text = "â–¶"
+        LikeButton.Text = "â™¡"
+        return
+    end
+    SongTitle.Text =
+        State.current.name
+    setCover(
+        State.current
+    )
+    updateLikeVisual()
+    if State.playing then
+        Play.Text = "â…¡"
+    else
+        Play.Text = "â–¶"
+    end
+end
+local function playSong(song)
+    if not song then
+        return
+    end
+    State.current = song
+    for index, item in ipairs(
+        State.songs
+    ) do
+        if item.id == song.id then
+            State.index = index
+            break
+        end
+    end
+    ensureVehicle()
+    local remoteOK =
+        vehiclePlayMusic(
+            song.id
+        )
+    pcall(function()
+        MusicSound:Stop()
+        MusicSound.SoundId =
+            "rbxassetid://"
+            .. tostring(song.id)
+        MusicSound.Volume = 0
+        MusicSound.Looped = false
+        MusicSound.TimePosition = 0
+        MusicSound:Play()
+    end)
+    State.playing = true
+    updatePlayerUI()
+    StatusLabel.Text =
+        remoteOK
+        and "Playing"
+        or "Vehicle remote unavailable"
+    showToast(
+        "Playing â€¢ "
+        .. tostring(song.name)
+    )
+end
+local function stopSong()
+    vehicleStopMusic()
+    pcall(function()
+        MusicSound:Stop()
+    end)
+    State.playing = false
+    Play.Text = "â–¶"
+    StatusLabel.Text = "Stopped"
+end
+local function pauseSong()
+    if not State.current then
+        return
+    end
+    vehicleStopMusic()
+    pcall(function()
+        MusicSound:Pause()
+    end)
+    State.playing = false
+    Play.Text = "â–¶"
+    StatusLabel.Text =
+        "Paused"
+    showToast(
+        "Paused"
+    )
+end
+local function resumeSong()
+    if not State.current then
+        return
+    end
+    vehiclePlayMusic(
+        State.current.id
+    )
+    pcall(function()
+        MusicSound:Resume()
+    end)
+    State.playing = true
+    Play.Text = "â…¡"
+    StatusLabel.Text =
+        "Playing"
+    showToast(
+        "Resumed"
+    )
+end
+local function nextSong()
+    if #State.queue > 0 then
+        local nextItem =
+            table.remove(
+                State.queue,
+                1
+            )
+        playSong(
+            nextItem
+        )
+        return
+    end
+    if #State.songs == 0 then
+        return
+    end
+    if State.shuffle
+        and #State.songs > 1 then
+        local nextIndex =
+            State.index
+        repeat
+            nextIndex =
+                math.random(
+                    1,
+                    #State.songs
+                )
+        until nextIndex ~=
+            State.index
+        State.index =
+            nextIndex
+    else
+        State.index =
+            State.index + 1
+        if State.index >
+            #State.songs then
+            State.index = 1
+        end
+    end
+    playSong(
+        State.songs[
+            State.index
+        ]
+    )
+end
+local function previousSong()
+    if not State.current then
+        return
+    end
+    if MusicSound.TimePosition > 4 then
+        pcall(function()
+            MusicSound.TimePosition = 0
+        end)
+        vehiclePlayMusic(
+            State.current.id
+        )
+        showToast(
+            "Restarted"
+        )
+        return
+    end
+    State.index =
+        State.index - 1
+    if State.index < 1 then
+        State.index =
+            #State.songs
+    end
+    playSong(
+        State.songs[
+            State.index
+        ]
+    )
+end
+local function cycleLoop()
+    if State.loopMode ==
+        "Off" then
+        State.loopMode =
+            "Track"
+        LoopButton.Text =
+            "ðŸ”"
+        showToast(
+            "Loop Track ON"
+        )
+    elseif State.loopMode ==
+        "Track" then
+        State.loopMode =
+            "Queue"
+        LoopButton.Text =
+            "ðŸ”"
+        showToast(
+            "Loop All ON"
+        )
+    else
+        State.loopMode =
+            "Off"
+        LoopButton.Text =
+            "ðŸ”"
+        showToast(
+            "Loop OFF"
+        )
+    end
+end
+local function toggleLike()
+    if not State.current then
+        showToast(
+            "Play a song first"
+        )
+        return
+    end
+    local id =
+        State.current.id
+    if State.liked[id] then
+        State.liked[id] = nil
+        showToast(
+            "Removed from Liked"
+        )
+    else
+        State.liked[id] = true
+        showToast(
+            "Added to Liked â™¥"
+        )
+    end
+    saveLocal(
+        "likes",
+        State.liked
+    )
+    updateLikeVisual()
+    renderList()
+end
+local function addCurrentToQueue()
+    if not State.current then
+        showToast(
+            "Play a song first"
+        )
+        return
+    end
+    table.insert(
+        State.queue,
+        State.current
+    )
+    showToast(
+        "Added to queue â€¢ "
+        .. State.current.name
+    )
+end
+local function closePlaylistModal()
+    local modal =
+        ScreenGui:FindFirstChild(
+            "PlaylistModal"
+        )
+    if modal then
+        modal:Destroy()
+    end
+end
+local function playlistPrompt()
+    if not State.current then
+        showToast(
+            "Play a song first"
+        )
+        return
+    end
+    closePlaylistModal()
+    local Overlay = create(
+        "Frame",
+        {
+            Name = "PlaylistModal",
+            Size = UDim2.fromScale(
+                1,
+                1
+            ),
+            BackgroundColor3 =
+                Color3.fromRGB(
+                    40,
+                    30,
+                    50
+                ),
+            BackgroundTransparency = 0.45,
+            ZIndex = 200
+        },
+        ScreenGui
+    )
+    local Modal = create(
+        "Frame",
+        {
+            Size = UDim2.fromOffset(
+                340,
+                270
+            ),
+            Position = UDim2.new(
+                0.5,
+                -170,
+                0.5,
+                -135
+            ),
+            BackgroundColor3 =
+                Color3.fromRGB(
+                    250,
+                    241,
+                    250
+                ),
+            BorderSizePixel = 0,
+            ZIndex = 201
+        },
+        Overlay
+    )
+    create("UICorner", {
+        CornerRadius = UDim.new(
+            0,
+            16
+        )
+    }, Modal)
+    makeLabel(
+        Modal,
+        "ADD TO PLAYLIST",
+        UDim2.fromOffset(
+            250,
+            32
+        ),
+        UDim2.fromOffset(
+            18,
+            14
+        ),
+        Enum.Font.GothamBold,
+        14
+    ).ZIndex = 202
+    local SongLabel = makeLabel(
+        Modal,
+        State.current.name,
+        UDim2.fromOffset(
+            300,
+            26
+        ),
+        UDim2.fromOffset(
+            18,
+            44
+        ),
+        Enum.Font.Gotham,
+        8
+    )
+    SongLabel.TextTruncate =
+        Enum.TextTruncate.AtEnd
+    SongLabel.ZIndex = 202
+    local NameBox = create(
+        "TextBox",
+        {
+            Size = UDim2.fromOffset(
+                220,
+                34
+            ),
+            Position = UDim2.fromOffset(
+                18,
+                76
+            ),
+            PlaceholderText =
+                "New playlist name...",
+            Text = "",
+            Font = Enum.Font.Gotham,
+            TextSize = 9,
+            TextColor3 =
+                Color3.fromRGB(
+                    65,
+                    55,
+                    72
+                ),
+            BackgroundColor3 =
+                Color3.fromRGB(
+                    255,
+                    255,
+                    255
+                ),
+            BackgroundTransparency = 0.15,
+            BorderSizePixel = 0,
+            ZIndex = 202
+        },
+        Modal
+    )
+    create("UICorner", {
+        CornerRadius = UDim.new(
+            0,
+            9
+        )
+    }, NameBox)
+    local CreateButton = create(
+        "TextButton",
+        {
+            Size = UDim2.fromOffset(
+                80,
+                34
+            ),
+            Position = UDim2.fromOffset(
+                242,
+                76
+            ),
+            Text = "CREATE",
+            Font = Enum.Font.GothamBold,
+            TextSize = 8,
+            TextColor3 =
+                Color3.fromRGB(
+                    65,
+                    50,
+                    70
+                ),
+            BackgroundColor3 =
+                Color3.fromRGB(
+                    232,
+                    214,
+                    239
+                ),
+            BorderSizePixel = 0,
+            ZIndex = 202
+        },
+        Modal
+    )
+    create("UICorner", {
+        CornerRadius = UDim.new(
+            0,
+            9
+        )
+    }, CreateButton)
+    local ExistingLabel =
+        makeLabel(
+            Modal,
+            "EXISTING PLAYLISTS",
+            UDim2.fromOffset(
+                280,
+                22
+            ),
+            UDim2.fromOffset(
+                18,
+                119
+            ),
+            Enum.Font.GothamBold,
+            8
+        )
+    ExistingLabel.ZIndex = 202
+    local PlaylistList = create(
+        "ScrollingFrame",
+        {
+            Size = UDim2.fromOffset(
+                304,
+                92
+            ),
+            Position = UDim2.fromOffset(
+                18,
+                143
+            ),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 3,
+            CanvasSize = UDim2.new(),
+            AutomaticCanvasSize =
+                Enum.AutomaticSize.Y,
+            ZIndex = 202
+        },
+        Modal
+    )
+    local Layout =
+        create(
+            "UIListLayout",
+            {
+                Padding = UDim.new(
+                    0,
+                    4
+                )
+            },
+            PlaylistList
+        )
+    local function addToPlaylist(
+        playlistName
+    )
+        State.playlists[
+            playlistName
+        ] =
+            State.playlists[
+                playlistName
+            ]
+            or {}
+        local exists = false
+        for _, id in ipairs(
+            State.playlists[
+                playlistName
+            ]
+        ) do
+            if tostring(id) ==
+                tostring(
+                    State.current.id
+                ) then
+                exists = true
+                break
+            end
+        end
+        if not exists then
+            table.insert(
+                State.playlists[
+                    playlistName
+                ],
+                State.current.id
+            )
+        end
+        saveLocal(
+            "playlists",
+            State.playlists
+        )
+        closePlaylistModal()
+        showToast(
+            "Added to "
+            .. playlistName
+        )
+    end
+    for playlistName, _ in pairs(
+        State.playlists
+    ) do
+        local button =
+            create(
+                "TextButton",
+                {
+                    Size =
+                        UDim2.new(
+                            1,
+                            -4,
+                            0,
+                            28
+                        ),
+                    Text =
+                        "â™« "
+                        .. tostring(
+                            playlistName
+                        ),
+                    Font =
+                        Enum.Font.GothamBold,
+                    TextSize = 8,
+                    TextColor3 =
+                        Color3.fromRGB(
+                            75,
+                            60,
+                            82
+                        ),
+                    BackgroundColor3 =
+                        Color3.fromRGB(
+                            255,
+                            255,
+                            255
+                        ),
+                    BackgroundTransparency =
+                        0.15,
+                    BorderSizePixel = 0,
+                    ZIndex = 203
+                },
+                PlaylistList
+            )
+        create(
+            "UICorner",
+            {
+                CornerRadius =
+                    UDim.new(
+                        0,
+                        8
+                    )
+            },
+            button
+        )
+        button.Activated:Connect(
+            function()
+                addToPlaylist(
+                    playlistName
+                )
+            end
+        )
+    end
+    CreateButton.Activated:Connect(
+        function()
+            local playlistName =
+                NameBox.Text
+            playlistName =
+                playlistName:gsub(
+                    "^%s+",
+                    ""
+                ):gsub(
+                    "%s+$",
+                    ""
+                )
+            if playlistName == "" then
+                playlistName =
+                    "My Playlist"
+            end
+            addToPlaylist(
+                playlistName
+            )
+        end
+    )
+    local Close =
+        create(
+            "TextButton",
+            {
+                Size =
+                    UDim2.fromOffset(
+                        28,
+                        28
+                    ),
+                Position =
+                    UDim2.new(
+                        1,
+                        -38,
+                        0,
+                        10
+                    ),
+                Text = "Ã—",
+                Font =
+                    Enum.Font.GothamBold,
+                TextSize = 16,
+                TextColor3 =
+                    Color3.fromRGB(
+                        75,
+                        60,
+                        82
+                    ),
+                BackgroundTransparency =
+                    1,
+                BorderSizePixel = 0,
+                ZIndex = 202
+            },
+            Modal
+        )
+    Close.Activated:Connect(
+        closePlaylistModal
+    )
+end
+local function addSongRow(
+    song,
+    order
+)
+    local row = create(
+        "TextButton",
+        {
+            LayoutOrder = order,
+            Size =
+                UDim2.new(
+                    1,
+                    -4,
+                    0,
+                    43
+                ),
+            BackgroundColor3 =
+                Color3.fromRGB(
+                    255,
+                    255,
+                    255
+                ),
+            BackgroundTransparency =
+                0.34,
+            BorderSizePixel = 0,
+            Text = "",
+            AutoButtonColor = false
+        },
+        List
+    )
+    create(
+        "UICorner",
+        {
+            CornerRadius =
+                UDim.new(
+                    0,
+                    9
+                )
+        },
+        row
+    )
+    local cover =
+        create(
+            "ImageLabel",
+            {
+                Size =
+                    UDim2.fromOffset(
+                        35,
+                        35
+                    ),
+                Position =
+                    UDim2.fromOffset(
+                        4,
+                        4
+                    ),
+                BackgroundColor3 =
+                    Color3.fromRGB(
+                        230,
+                        220,
+                        240
+                    ),
+                BorderSizePixel = 0,
+                Image =
+                    "rbxthumb://type=Asset&id="
+                    .. tostring(
+                        song.id
+                    )
+                    .. "&w=150&h=150",
+                ScaleType =
+                    Enum.ScaleType.Crop
+            },
+            row
+        )
+    create(
+        "UICorner",
+        {
+            CornerRadius =
+                UDim.new(
+                    1,
+                    0
+                )
+        },
+        cover
+    )
+    local title =
+        makeLabel(
+            row,
+            song.name,
+            UDim2.new(
+                1,
+                -76,
+                0,
+                23
+            ),
+            UDim2.fromOffset(
+                46,
+                4
+            ),
+            Enum.Font.GothamBold,
+            8
+        )
+    title.TextTruncate =
+        Enum.TextTruncate.AtEnd
+    local category =
+        makeLabel(
+            row,
+            tostring(
+                song.category
+            ),
+            UDim2.new(
+                1,
+                -76,
+                0,
+                14
+            ),
+            UDim2.fromOffset(
+                46,
+                25
+            ),
+            Enum.Font.Gotham,
+            6
+        )
+    category.TextColor3 =
+        Color3.fromRGB(
+            135,
+            120,
+            145
+        )
+    local heart =
+        makeLabel(
+            row,
+            State.liked[
+                song.id
+            ]
+            and "â™¥"
+            or "",
+            UDim2.fromOffset(
+                20,
+                35
+            ),
+            UDim2.new(
+                1,
+                -25,
+                0,
+                4
+            ),
+            Enum.Font.GothamBold,
+            11
+        )
+    heart.TextXAlignment =
+        Enum.TextXAlignment.Center
+    heart.TextColor3 =
+        Color3.fromRGB(
+            220,
+            85,
+            135
+        )
+    row.Activated:Connect(
+        function()
+            playSong(song)
+        end
+    )
+end
+function renderList()
+    updateFilter()
+    clearList()
+    for index, song in ipairs(
+        State.filtered
+    ) do
+        addSongRow(
+            song,
+            index
+        )
+    end
+    local total =
+        #State.filtered
+    StatusLabel.Text =
+        tostring(total)
+        .. " / "
+        .. tostring(
+            #State.songs
+        )
+        .. " tracks"
+    if applyTheme then
+        applyTheme()
+    end
+end
+Search:GetPropertyChangedSignal(
+    "Text"
+):Connect(function()
+    State.search =
+        Search.Text
+    renderList()
+end)
+Play.Activated:Connect(
+    function()
+        if not State.current then
+            if #State.filtered > 0 then
+                playSong(
+                    State.filtered[1]
+                )
+            elseif #State.songs > 0 then
+                playSong(
+                    State.songs[1]
+                )
+            end
+            return
+        end
+        if State.playing then
+            pauseSong()
+        else
+            resumeSong()
+        end
+    end
+)
+Prev.Activated:Connect(
+    previousSong
+)
+Next.Activated:Connect(
+    nextSong
+)
+ShuffleButton.Activated:Connect(
+    function()
+        State.shuffle =
+            not State.shuffle
+        ShuffleButton.TextColor3 =
+            State.shuffle
+            and Color3.fromRGB(
+                220,
+                80,
+                140
+            )
+            or Color3.fromRGB(
+                100,
+                83,
+                110
+            )
+        showToast(
+            State.shuffle
+            and "Shuffle ON"
+            or "Shuffle OFF"
+        )
+    end
+)
+LikeButton.Activated:Connect(
+    toggleLike
+)
+PlaylistButton.Activated:Connect(
+    playlistPrompt
+)
+QueueButton.Activated:Connect(
+    addCurrentToQueue
+)
+LoopButton.Activated:Connect(
+    cycleLoop
+)
+SkateButton.Activated:Connect(
+    toggleSkateboard
+)
+SegwayButton.Activated:Connect(
+    toggleSegway
+)
+RGBButton.Activated:Connect(
+    setVehicleRGB
+)
+Volume.FocusLost:Connect(
+    function()
+        local number =
+            tonumber(
+                Volume.Text
+            )
+        if number then
+            number =
+                math.clamp(
+                    number,
+                    0,
+                    100
+                )
+            State.volume =
+                number / 100
+            Volume.Text =
+                tostring(
+                    math.floor(
+                        number
+                    )
+                )
+            saveSettings()
+            showToast(
+                "Volume "
+                .. tostring(
+                    math.floor(
+                        number
+                    )
+                )
+                .. "%"
+            )
+        else
+            Volume.Text =
+                tostring(
+                    math.floor(
+                        State.volume
+                        * 100
+                    )
+                )
+        end
+    end
+)
+local hidden = false
+HideButton.Activated:Connect(
+    function()
+        hidden =
+            not hidden
+        if hidden then
+            Main.Visible = false
+            setAmbientVisible(false)
+        else
+            Main.Visible = true
+            setAmbientVisible(true)
+        end
+    end
+)
+CloseButton.Activated:Connect(
+    function()
+        hidden = true
+        Main.Visible = false
+        setAmbientVisible(false)
+    end
+)
+MusicSound.Ended:Connect(
+    function()
+        if State.destroyed then
+            return
+        end
+        if State.loopMode ==
+            "Track" then
+            if State.current then
+                playSong(
+                    State.current
+                )
+            end
+            return
+        end
+        if State.loopMode ==
+            "Queue" then
+            if #State.queue > 0 then
+                nextSong()
+            else
+                nextSong()
+            end
+            return
+        end
+        nextSong()
+    end
+)
+LocalPlayer.CharacterAdded:Connect(
+    function()
+        task.wait(2)
+        if State.current
+            and State.playing then
+            ensureVehicle()
+            task.wait(0.5)
+            vehiclePlayMusic(
+                State.current.id
+            )
+        end
+    end
+)
+local gradientTime = 0
+local coverTime = 0
+RunService.RenderStepped:Connect(
+    function(dt)
+        if State.destroyed then
+            return
+        end
+        gradientTime += dt
+        coverTime += dt
+        HideButton.Rotation =
+            (HideButton.Rotation + (dt * 18)) % 360
+        local hue =
+            (
+                gradientTime
+                * 0.035
+            ) % 1
+        local c1
+        local c2
+        local c3
+        if State.theme == "Dark" then
+            c1 = Color3.fromHSV((hue + 0.77) % 1, 0.55, 0.16)
+            c2 = Color3.fromHSV((hue + 0.66) % 1, 0.45, 0.11)
+            c3 = Color3.fromHSV((hue + 0.90) % 1, 0.50, 0.14)
+        else
+            c1 = Color3.fromHSV((hue + 0.92) % 1, 0.12, 1)
+            c2 = Color3.fromHSV((hue + 0.05) % 1, 0.10, 1)
+            c3 = Color3.fromHSV((hue + 0.48) % 1, 0.10, 1)
+        end
+        Gradient.Color =
+            ColorSequence.new({
+                ColorSequenceKeypoint.new(
+                    0,
+                    c1
+                ),
+                ColorSequenceKeypoint.new(
+                    0.5,
+                    c2
+                ),
+                ColorSequenceKeypoint.new(
+                    1,
+                    c3
+                )
+            })
+        if State.theme == "Dark" then
+            MainStroke.Color = Color3.fromHSV((hue + 0.86) % 1, 0.52, 0.70)
+            CoverStroke.Color = Color3.fromHSV((hue + 0.76) % 1, 0.48, 0.62)
+        else
+            MainStroke.Color = Color3.fromHSV((hue + 0.9) % 1, 0.18, 0.95)
+            CoverStroke.Color = Color3.fromHSV((hue + 0.82) % 1, 0.20, 0.92)
+        end
+        if State.playing
+            and State.current
+            and coverTime >= 0.035 then
+            coverTime = 0
+            State.coverRotation =
+                (
+                    State.coverRotation
+                    + 2
+                ) % 360
+            Cover.Rotation =
+                State.coverRotation
+        end
+        if cherryVisible and AmbientLayer.Visible then
+            for _, leafData in ipairs(cherryLeaves) do
+                local leaf = leafData.object
+                leafData.y += leafData.speed * dt
+                if leafData.y > 1.12 then
+                    leafData.y = cherryRandom:NextNumber(-0.18, -0.05)
+                    leafData.x = cherryRandom:NextNumber(-0.05, 1.05)
+                    leafData.phase = cherryRandom:NextNumber(0, math.pi * 2)
+                    leafData.baseTransparency = State.theme == "Dark"
+                        and cherryRandom:NextNumber(0.10, 0.22)
+                        or cherryRandom:NextNumber(0.08, 0.22)
+                end
+                local drift
+                if State.theme == "Dark" then
+                    drift = math.sin(gradientTime * leafData.swaySpeed + leafData.phase) * leafData.sway * 0.22
+                else
+                    drift = math.sin(gradientTime * leafData.swaySpeed + leafData.phase) * leafData.sway
+                end
+                local fadeNearBottom = math.clamp((leafData.y - 0.78) / 0.34, 0, 1)
+                leaf.Position = UDim2.new(
+                    leafData.x + drift,
+                    0,
+                    leafData.y,
+                    0
+                )
+                leaf.Rotation += (State.theme == "Dark" and leafData.snowRotationSpeed or leafData.rotationSpeed) * dt
+                leaf.ImageTransparency = math.clamp(
+                    leafData.baseTransparency + fadeNearBottom * (State.theme == "Dark" and 0.78 or 0.70),
+                    0,
+                    1
+                )
+            end
+        elseif not cherryVisible then
+            cherryFade = math.min(1, cherryFade + dt * 2.4)
+            for _, leafData in ipairs(cherryLeaves) do
+                leafData.object.ImageTransparency = math.min(1, leafData.object.ImageTransparency + dt * 2.4)
+            end
+        end
+        if State.rgb then
+            updateVehicleRGB()
+        end
+    end
+)
+refreshCategoryButtons()
+renderList()
+if State.vehicleMode ==
+    "Segway" then
+    State.segway = true
+    State.skateboard = false
+    SegwayButton.Text =
+        "âš¡ SEGWAY: ON"
+    SkateButton.Text =
+        "ðŸ›¹ SKATE: OFF"
+    VehicleStatus.Text =
+        "Vehicle: Segway"
+else
+    State.skateboard = true
+    State.segway = false
+    SkateButton.Text =
+        "ðŸ›¹ SKATE: ON"
+    SegwayButton.Text =
+        "âš¡ SEGWAY: OFF"
+    VehicleStatus.Text =
+        "Vehicle: Skateboard"
+end
+task.spawn(
+    function()
+        task.wait(0.5)
+        StatusLabel.Text =
+            tostring(
+                #State.songs
+            )
+            .. " tracks"
+        showToast(
+            "SAIKI MUSIC â€¢ "
+            .. tostring(
+                #State.songs
+            )
+            .. " tracks loaded"
+        )
+    end
+)
+print(
+    "[SAIKI MUSIC] Loaded "
+    .. tostring(
+        #State.songs
+    )
+    .. " tracks."
+)
+print(
+    "[SAIKI MUSIC] Categories:"
+)
+for _, category in ipairs(
+    CATEGORIES
+) do
+    local count = 0
+    for _, song in ipairs(
+        State.songs
+    ) do
+        if song.category ==
+            category then
+            count += 1
+        end
+    end
+    print(
+        "  "
+        .. category
+        .. ": "
+        .. tostring(count)
+    )
+end
