@@ -1,0 +1,495 @@
+-- Liquid Glass skin cho RedzLib (giữ nguyên RedzLib gốc, chỉ phủ giao diện kính lỏng)
+
+-- =====================================================================
+--  LIQUID GLASS SKIN cho Fluent (giữ nguyên UI Fluent Maru, chỉ đổi giao diện)
+--  Không thay thư viện: chỉ thêm lớp viền/bóng/hiệu ứng lên các khung của Fluent.
+--  Chỉnh nhanh ở bảng S bên dưới.
+-- =====================================================================
+local function LiquidGlassSkin(opt)
+    local StarterGui = game:GetService("StarterGui")
+    -- thông báo chẩn đoán dùng SendNotification của Roblox (không phụ thuộc RedzLib)
+    local Fluent = { Notify = function(_, c)
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = tostring(c.Title or ""),
+                Text = tostring(c.Content or "") .. (c.SubContent and ("\n" .. tostring(c.SubContent)) or ""),
+                Duration = c.Duration or 6,
+            })
+        end)
+    end }
+    local Window = {}
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local UIS = game:GetService("UserInputService")
+    local TweenService = game:GetService("TweenService")
+    local GuiService = game:GetService("GuiService")
+    local Lighting = game:GetService("Lighting")
+    local WHITE = Color3.new(1, 1, 1)
+
+    local S = {
+        Title = "",          -- tiêu đề cửa sổ (để tự tìm GUI nếu cần)
+        SubTitle = "",
+        Debug = true,        -- hiện thông báo kết quả áp skin
+        WindowRadius = 26,   -- bo góc cửa sổ
+        CardRadius = 18,     -- bo góc hàng/nút (dạng viên thuốc)
+        Floor = 0.55,        -- độ trong tối thiểu của các khung nền lớn (0 = đục, 1 = trong hẳn)
+        FloorTransparent = 0.8,
+        Effects = true,      -- cực quang + bong bóng + đèn rọi
+        Blur = 12,           -- độ mờ nền game
+        Accent = Color3.fromRGB(255, 95, 110), -- màu cực quang (đổi theo màu theme RedzLib của bạn)
+        WaitSeconds = 25,    -- chờ UI xuất hiện tối đa bao lâu
+    }
+    for k, v in pairs(opt or {}) do S[k] = v end
+
+    -- ---------- tiện ích ----------
+    local function new(class, props, children)
+        local o = Instance.new(class)
+        o:SetAttribute("LG", true)
+        for k, v in pairs(props or {}) do o[k] = v end
+        for _, c in ipairs(children or {}) do c.Parent = o end
+        return o
+    end
+    local function tween(o, t, props, style, dir)
+        local tw = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out), props)
+        tw:Play()
+        return tw
+    end
+    local function kp(t, v) return NumberSequenceKeypoint.new(t, v) end
+    local function corner(r) return new("UICorner", { CornerRadius = UDim.new(0, r) }) end
+    local function isPress(i) return i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch end
+    local function isMove(i) return i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch end
+    local function screenPos(i) return Vector2.new(i.Position.X, i.Position.Y) + GuiService:GetGuiInset() end
+    local function isOurs(o) return o:GetAttribute("LG") == true end
+
+    -- ---------- tìm GUI & khung chính (chờ tối đa 8 giây) ----------
+    local function notify(title, content, sub, dur)
+        pcall(function() Fluent:Notify({ Title = title, Content = content, SubContent = sub, Duration = dur or 6 }) end)
+    end
+
+    local function guiRoots()
+        local roots = {}
+        pcall(function() if gethui then table.insert(roots, gethui()) end end)
+        pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+        pcall(function() table.insert(roots, Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")) end)
+        return roots
+    end
+
+    local function findGui()
+        if typeof(Fluent.GUI) == "Instance" and Fluent.GUI.Parent then return Fluent.GUI end
+        if typeof(Window.Root) == "Instance" then
+            local g = Window.Root:FindFirstAncestorOfClass("ScreenGui")
+            if g then return g end
+        end
+        local titles = {}
+        if S.Title ~= "" then table.insert(titles, S.Title) end
+        if S.SubTitle and S.SubTitle ~= "" then table.insert(titles, S.SubTitle) end
+        for _, rt in ipairs(guiRoots()) do
+            for _, g in ipairs(rt:GetChildren()) do
+                if g:IsA("ScreenGui") and not isOurs(g) and string.find(string.lower(g.Name), "redz", 1, true) then return g end
+            end
+        end
+        for _, rt in ipairs(guiRoots()) do
+            for _, g in ipairs(rt:GetChildren()) do
+                if g:IsA("ScreenGui") and not isOurs(g) then
+                    for _, d in ipairs(g:GetDescendants()) do
+                        if d:IsA("TextLabel") then
+                            for _, t in ipairs(titles) do
+                                if d.Text == t then return g end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local function findRoot(g)
+        if typeof(Window.Root) == "Instance" and Window.Root:IsA("GuiObject") and Window.Root:IsDescendantOf(g) then return Window.Root end
+        local best, pick = 0, nil
+        for _, d in ipairs(g:GetDescendants()) do
+            if d:IsA("Frame") and not isOurs(d) then
+                local x, y = d.AbsoluteSize.X, d.AbsoluteSize.Y
+                if x >= 260 and y >= 180 and x * y > best then best, pick = x * y, d end
+            end
+        end
+        return pick
+    end
+
+    local gui, root
+    for _ = 1, math.floor(S.WaitSeconds / 0.25) do
+        gui = findGui()
+        if gui then root = findRoot(gui) end
+        if root then break end
+        task.wait(0.2)
+    end
+    if not gui or not root then
+        notify("Liquid Glass", "Không tìm thấy UI RedzLib để áp skin. Hãy đặt Title đúng tên cửa sổ", "gui=" .. (gui and gui:GetFullName() or "nil") .. " root=" .. (root and "ok" or "nil"), 12)
+        return
+    end
+
+    -- ---------- trạng thái ----------
+    local done = setmetatable({}, { __mode = "k" })
+    local floors = {}            -- {inst, prop, base}
+    local irid = {}              -- gradient cầu vồng
+    local accentObjs = {}        -- khung màu nhấn (cực quang)
+    local conns = {}
+    local alive = true
+    local cnt = { big = 0, panel = 0, card = 0, tab = 0 }
+    local accent = S.Accent
+    local themeAccent = {
+        Dark = Color3.fromRGB(96, 205, 255), Darker = Color3.fromRGB(96, 205, 255), Light = Color3.fromRGB(70, 110, 220),
+        Aqua = Color3.fromRGB(90, 235, 220), Amethyst = Color3.fromRGB(190, 140, 255), Rose = Color3.fromRGB(255, 130, 180),
+    }
+
+    local function lgStroke(parent, thick, base, uniform)
+        local s = new("UIStroke", { Name = "LG_Stroke", Thickness = thick, Color = WHITE, Transparency = base, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+        local seq = uniform and NumberSequence.new({ kp(0, 0), kp(0.5, 0.4), kp(1, 0) })
+            or NumberSequence.new({ kp(0, 0), kp(0.3, 0.6), kp(0.5, 0.92), kp(0.75, 0.6), kp(1, 0.05) })
+        new("UIGradient", { Rotation = 45, Transparency = seq }).Parent = s
+        s.Parent = parent
+        return s
+    end
+
+    -- ép độ trong tối thiểu (Fluent tự đặt lại giá trị -> kẹp lại ngay)
+    local function floorProp(inst, prop, getFloor)
+        local function clamp()
+            local f = getFloor()
+            if inst[prop] < f then inst[prop] = f end
+        end
+        clamp()
+        table.insert(conns, inst:GetPropertyChangedSignal(prop):Connect(clamp))
+        table.insert(floors, { inst, clamp })
+    end
+
+    -- ---------- lớp phủ cửa sổ ----------
+    local blob, bubbles, glowRoot, glowClip = {}, {}, nil, nil
+    local glowTarget, glowPos = Vector2.new(120, 90), Vector2.new(120, 90)
+    local function buildOverlay()
+        local r = S.WindowRadius
+        local uc = root:FindFirstChildOfClass("UICorner")
+        if uc then uc.CornerRadius = UDim.new(0, r) end
+        local ov = new("Frame", {
+            Name = "LG_Overlay", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Active = false, ZIndex = 500, Parent = root,
+        }, { corner(r) })
+        lgStroke(ov, 1.5, 0.25, false)
+
+        -- bóng sáng phía trên + đáy tối nhẹ
+        local shine = new("Frame", { BackgroundColor3 = WHITE, BackgroundTransparency = 0.8, Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, Active = false, ZIndex = 500, Parent = ov }, { corner(r) })
+        local shineG = new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ kp(0, 0.3), kp(0.22, 0.8), kp(0.5, 1), kp(1, 1) }) })
+        shineG.Parent = shine
+        local depth = new("Frame", { BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.8, Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, Active = false, ZIndex = 500, Parent = ov }, { corner(r) })
+        new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ kp(0, 1), kp(0.65, 1), kp(1, 0.2) }) }).Parent = depth
+
+        -- tán sắc đỏ/xanh ở mép
+        for _, c in ipairs({ { Color3.fromRGB(255, 90, 130), 1 }, { Color3.fromRGB(80, 210, 255), -1 } }) do
+            local ch = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(c[2], 0), Size = UDim2.fromScale(1, 1), Active = false, ZIndex = 500, Parent = ov }, { corner(r) })
+            new("UIStroke", { Thickness = 1, Color = c[1], Transparency = 0.8, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }).Parent = ch
+        end
+
+        -- viền khúc xạ trong, cầu vồng xoay
+        local rim = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6), Active = false, ZIndex = 500, Parent = ov }, { corner(r - 3) })
+        local st = new("UIStroke", { Thickness = 1.3, Color = WHITE, Transparency = 0.4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+        local ig = new("UIGradient", {
+            Rotation = 225,
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 230, 255)), ColorSequenceKeypoint.new(0.35, WHITE),
+                ColorSequenceKeypoint.new(0.65, Color3.fromRGB(255, 160, 235)), ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 235, 150)),
+            }),
+            Transparency = NumberSequence.new({ kp(0, 0.1), kp(0.35, 0.85), kp(0.65, 0.85), kp(1, 0.1) }),
+        })
+        ig.Parent = st
+        st.Parent = rim
+        table.insert(irid, ig)
+
+        -- vạch sáng mép trên
+        local tl = new("Frame", { BackgroundColor3 = WHITE, BorderSizePixel = 0, Active = false, ZIndex = 500, Position = UDim2.new(0, 40, 0, 2), Size = UDim2.new(1, -80, 0, 1), Parent = ov })
+        new("UIGradient", { Transparency = NumberSequence.new({ kp(0, 1), kp(0.5, 0.15), kp(1, 1) }) }).Parent = tl
+
+        -- lớp chất lỏng: cực quang + bong bóng + đèn rọi bám tay
+        glowClip = new("Frame", { Name = "LG_Fx", BackgroundTransparency = 1, ClipsDescendants = true, Active = false, ZIndex = 500, Position = UDim2.fromOffset(14, 14), Size = UDim2.new(1, -28, 1, -28), Visible = S.Effects, Parent = ov })
+        for k = 1, 3 do
+            local rt = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 0), Active = false, ZIndex = 500, Parent = glowClip })
+            for _, d in ipairs({ { 300, 0.975 }, { 190, 0.965 }, { 100, 0.955 } }) do
+                local c = new("Frame", {
+                    AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(d[1], d[1]), BorderSizePixel = 0, BackgroundColor3 = accent,
+                    BackgroundTransparency = d[2], Active = false, ZIndex = 500, Parent = rt,
+                }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+                table.insert(accentObjs, c)
+            end
+            blob[k] = rt
+        end
+        for k = 1, 8 do
+            local sz = 12 + (k * 7) % 28
+            local b = new("Frame", { BackgroundColor3 = WHITE, BackgroundTransparency = 0.94, Size = UDim2.fromOffset(sz, sz), BorderSizePixel = 0, Active = false, ZIndex = 500, Parent = glowClip },
+                { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+            new("UIStroke", { Thickness = 1, Color = WHITE, Transparency = 0.6, Parent = b })
+            bubbles[k] = { f = b, x = (k * 0.137) % 1, y = (k * 0.31) % 1, sp = 0.02 + 0.012 * (k % 4), ph = k * 1.7 }
+        end
+        glowRoot = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 0), Active = false, ZIndex = 500, Parent = glowClip })
+        for _, d in ipairs({ { 320, 0.975 }, { 210, 0.97 }, { 120, 0.96 }, { 56, 0.95 } }) do
+            new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(d[1], d[1]), BackgroundColor3 = WHITE, BackgroundTransparency = d[2], BorderSizePixel = 0, Active = false, ZIndex = 500, Parent = glowRoot },
+                { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+        end
+
+        -- hiệu ứng mở kiểu thạch
+        if not root:FindFirstChildOfClass("UIScale") then
+            local sc = new("UIScale", { Scale = 0.9, Parent = root })
+            tween(sc, 0.9, { Scale = 1 }, Enum.EasingStyle.Elastic)
+        end
+
+        local t0 = os.clock()
+        table.insert(conns, RunService.Heartbeat:Connect(function(dt)
+            if not alive or not root.Parent then return end
+            local t = os.clock() - t0
+            local rot = (225 + t * 45) % 360
+            for _, g in ipairs(irid) do if g.Parent then g.Rotation = rot end end
+            shineG.Rotation = 90 + math.sin(t * 0.6) * 18
+            shineG.Offset = Vector2.new(math.sin(t * 0.4) * 0.12, 0)
+            if S.Effects and glowClip.Visible then
+                local sz = glowClip.AbsoluteSize
+                for k, rt in ipairs(blob) do
+                    rt.Position = UDim2.fromOffset(sz.X * (0.5 + 0.42 * math.sin(t * 0.23 * k + k)), sz.Y * (0.5 + 0.42 * math.cos(t * 0.19 * k + k * 2)))
+                end
+                for _, bb in ipairs(bubbles) do
+                    bb.y = bb.y - bb.sp * dt
+                    if bb.y < -0.1 then bb.y = 1.1 end
+                    bb.f.Position = UDim2.fromOffset(sz.X * (bb.x + 0.03 * math.sin(t + bb.ph)), sz.Y * bb.y)
+                end
+                glowPos = glowPos:Lerp(glowTarget, math.clamp(dt * 8, 0, 1))
+                glowRoot.Position = UDim2.fromOffset(glowPos.X, glowPos.Y)
+            end
+        end))
+        local function setGlow(i) glowTarget = screenPos(i) - glowClip.AbsolutePosition end
+        table.insert(conns, UIS.InputChanged:Connect(function(i) if root.Visible and isMove(i) then setGlow(i) end end))
+        table.insert(conns, UIS.InputBegan:Connect(function(i) if root.Visible and isPress(i) then setGlow(i) end end))
+    end
+
+    -- ---------- tương tác chung: hover đàn hồi, ép, gợn nước ----------
+    local function interact(d, withGlow)
+        d.ClipsDescendants = true
+        local scale = new("UIScale", { Scale = 1, Parent = d })
+        local glow
+        if withGlow then
+            glow = new("Frame", {
+                Name = "LG_Glow", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(170, 170), BackgroundColor3 = WHITE,
+                BackgroundTransparency = 1, BorderSizePixel = 0, Active = false, ZIndex = d.ZIndex + 1, Parent = d,
+            }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+        end
+        d.MouseEnter:Connect(function()
+            tween(scale, 0.35, { Scale = 1.012 }, Enum.EasingStyle.Back)
+            if glow then tween(glow, 0.25, { BackgroundTransparency = 0.9 }) end
+        end)
+        d.MouseLeave:Connect(function()
+            tween(scale, 0.35, { Scale = 1 })
+            if glow then tween(glow, 0.35, { BackgroundTransparency = 1 }) end
+        end)
+        if glow then
+            d.MouseMoved:Connect(function(x, y)
+                local p = Vector2.new(x, y) + GuiService:GetGuiInset() - d.AbsolutePosition
+                tween(glow, 0.18, { Position = UDim2.fromOffset(p.X, p.Y) })
+            end)
+        end
+        d.InputBegan:Connect(function(i)
+            if not isPress(i) then return end
+            tween(scale, 0.12, { Scale = 0.965 })
+            local p = screenPos(i) - d.AbsolutePosition
+            local rip = new("Frame", {
+                AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = WHITE, BackgroundTransparency = 0.7, BorderSizePixel = 0, Active = false,
+                ZIndex = d.ZIndex + 2, Size = UDim2.fromOffset(0, 0), Position = UDim2.fromOffset(p.X, p.Y), Parent = d,
+            }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+            tween(rip, 0.6, { Size = UDim2.fromOffset(d.AbsoluteSize.X * 1.6, d.AbsoluteSize.X * 1.6), BackgroundTransparency = 1 })
+            task.delay(0.65, function() rip:Destroy() end)
+            task.delay(0.12, function()
+                local ring = new("Frame", {
+                    AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, BorderSizePixel = 0, Active = false, ZIndex = d.ZIndex + 2,
+                    Size = UDim2.fromOffset(0, 0), Position = UDim2.fromOffset(p.X, p.Y), Parent = d,
+                }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }), new("UIStroke", { Thickness = 2, Color = WHITE, Transparency = 0.4 }) })
+                tween(ring, 0.7, { Size = UDim2.fromOffset(d.AbsoluteSize.X * 1.3, d.AbsoluteSize.X * 1.3) })
+                tween(ring.UIStroke, 0.7, { Transparency = 1 })
+                task.delay(0.75, function() ring:Destroy() end)
+            end)
+        end)
+        d.InputEnded:Connect(function(i)
+            if isPress(i) then tween(scale, 0.6, { Scale = 1 }, Enum.EasingStyle.Elastic) end
+        end)
+    end
+
+    -- ---------- kiểu cho từng loại khung ----------
+    local function setCorner(d, r)
+        local uc = d:FindFirstChildOfClass("UICorner")
+        if not uc then uc = new("UICorner", { Parent = d }) end
+        uc.CornerRadius = UDim.new(0, r)
+        return r
+    end
+    local function softenOwnStrokes(d)
+        for _, c in ipairs(d:GetChildren()) do
+            if c:IsA("UIStroke") and not isOurs(c) then floorProp(c, "Transparency", function() return 0.8 end) end
+        end
+    end
+    local function shineFor(d, r)
+        local sh = new("Frame", {
+            Name = "LG_Shine", BackgroundColor3 = WHITE, BackgroundTransparency = 0.88, Size = UDim2.fromScale(1, 1), BorderSizePixel = 0,
+            Active = false, ZIndex = d.ZIndex, Parent = d,
+        }, { corner(r) })
+        new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ kp(0, 0.25), kp(0.3, 0.8), kp(0.7, 1), kp(1, 0.7) }) }).Parent = sh
+    end
+
+    local function styleCard(d)
+        local r = setCorner(d, math.min(S.CardRadius, d.AbsoluteSize.Y / 2))
+        softenOwnStrokes(d)
+        lgStroke(d, 1.2, 0.45, true)
+        shineFor(d, r)
+        interact(d, true)
+    end
+    local function styleTab(d)
+        local r = setCorner(d, d.AbsoluteSize.Y / 2)
+        local st = lgStroke(d, 1.3, 1, true)
+        local function upd() tween(st, 0.2, { Transparency = (d.BackgroundTransparency < 0.92) and 0.35 or 1 }) end
+        upd()
+        table.insert(conns, d:GetPropertyChangedSignal("BackgroundTransparency"):Connect(upd))
+        interact(d, false)
+    end
+    local function stylePanel(d)
+        local r = setCorner(d, 20)
+        floorProp(d, "BackgroundTransparency", function() return 0.4 end)
+        softenOwnStrokes(d)
+        lgStroke(d, 1.4, 0.3, false)
+        shineFor(d, r)
+    end
+
+    local function curFloor() return S.Floor end
+
+    local function classify(d)
+        if isOurs(d) or d == root then return end
+        if not (d:IsA("Frame") or d:IsA("TextButton") or d:IsA("ImageButton")) then return end
+        local sx, sy = d.AbsoluteSize.X, d.AbsoluteSize.Y
+        if sx <= 0 or sy <= 0 then return end
+        local W, H = root.AbsoluteSize.X, root.AbsoluteSize.Y
+        if W <= 0 then return end
+        local bg = d.BackgroundTransparency
+        if bg >= 1 then return end
+
+        -- khung nền lớn của cửa sổ -> trong suốt hơn
+        if d:IsA("Frame") and sx >= W * 0.45 and sy >= H * 0.45 and d:IsDescendantOf(root) then
+            floorProp(d, "BackgroundTransparency", curFloor)
+            cnt.big = cnt.big + 1
+            done[d] = true
+            return
+        end
+        -- bảng nổi (dropdown, hộp thoại...) là con trực tiếp của ScreenGui
+        if d.Parent == gui and d:IsA("Frame") and sx >= 120 and sy >= 50 then
+            stylePanel(d); cnt.panel = cnt.panel + 1; done[d] = true; return
+        end
+        local hasLook = d:FindFirstChildOfClass("UICorner") ~= nil or d:FindFirstChildOfClass("UIStroke") ~= nil or d:IsA("GuiButton")
+        if not hasLook or not d:IsDescendantOf(gui) then return end
+        -- hàng / phần tử (toggle, slider, dropdown, notification...)
+        if sx >= W * 0.42 and sy >= 32 and sy <= 220 then
+            styleCard(d); cnt.card = cnt.card + 1; done[d] = true; return
+        end
+        -- nút tab bên trái
+        if d:IsA("GuiButton") and sx >= W * 0.15 and sx <= W * 0.4 and sy >= 26 and sy <= 52 and d:IsDescendantOf(root) then
+            local relX = d.AbsolutePosition.X - root.AbsolutePosition.X
+            if relX < W * 0.4 then styleTab(d); cnt.tab = cnt.tab + 1; done[d] = true; return end
+        end
+    end
+
+    local function scan()
+        if not alive or not gui.Parent then return end
+        for _, d in ipairs(gui:GetDescendants()) do
+            if not done[d] then
+                local ok, err = pcall(classify, d)
+                if not ok then done[d] = true end
+            end
+        end
+    end
+
+    -- ---------- khởi chạy ----------
+    local okOv, errOv = pcall(buildOverlay)
+    if not okOv then notify("Liquid Glass", "Lỗi tạo lớp phủ", tostring(errOv):sub(1, 160), 12) end
+
+    local blur
+    if not Window.AcrylicPaint and S.Blur > 0 then
+        blur = Instance.new("BlurEffect")
+        blur.Name = "LG_Blur"
+        blur.Size = S.Blur
+        blur.Parent = Lighting
+    end
+    local function syncBlur() if blur then blur.Enabled = root.Visible and gui.Enabled end end
+    table.insert(conns, root:GetPropertyChangedSignal("Visible"):Connect(syncBlur))
+    table.insert(conns, gui:GetPropertyChangedSignal("Enabled"):Connect(syncBlur))
+
+    -- móc vào các hàm của Fluent
+    local function wrap(name, fn)
+        local orig = Fluent[name]
+        if type(orig) ~= "function" then return end
+        Fluent[name] = function(self, ...)
+            local res = table.pack(pcall(orig, self, ...))
+            pcall(fn, ...)
+            if res[1] then return table.unpack(res, 2, res.n) end
+        end
+    end
+    wrap("SetTheme", function(name)
+        local c = themeAccent[name]
+        if c then
+            accent = c
+            for _, o in ipairs(accentObjs) do if o.Parent then tween(o, 0.4, { BackgroundColor3 = c }) end end
+        end
+    end)
+    wrap("ToggleTransparency", function(v)
+        S.Floor = v and S.FloorTransparent or 0.55
+        for _, e in ipairs(floors) do if e[1].Parent then e[2]() end end
+    end)
+    wrap("ToggleAcrylic", function(v) if blur then blur.Enabled = v and true or false end end)
+
+    local okScan, errScan = pcall(scan)
+    if not okScan then notify("Liquid Glass", "Lỗi quét UI", tostring(errScan):sub(1, 160), 12) end
+    local pending = false
+    table.insert(conns, gui.DescendantAdded:Connect(function()
+        if pending then return end
+        pending = true
+        task.delay(0.15, function() pending = false; scan() end)
+    end))
+    task.spawn(function()
+        local n = 0
+        while alive and gui.Parent do
+            n = n + 1
+            task.wait(n < 12 and 0.4 or 1.5)
+            scan()
+        end
+    end)
+
+    if S.Debug then
+        task.delay(2.5, function()
+            if alive then
+                notify("Liquid Glass", "Đã áp skin lên RedzLib",
+                    string.format("overlay=%s  nền=%d  hàng=%d  tab=%d  bảng=%d", tostring(okOv), cnt.big, cnt.card, cnt.tab, cnt.panel), 8)
+            end
+        end)
+    end
+
+    local function cleanup()
+        alive = false
+        for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+        if blur then blur:Destroy() end
+    end
+    table.insert(conns, gui.AncestryChanged:Connect(function(_, parent) if not parent then cleanup() end end))
+    return { Cleanup = cleanup, Settings = S }
+end
+
+
+-- =====================================================================
+--  CÁCH DÙNG
+--  Cách 1 (tự động): dán file này vào CUỐI script RedzLib của bạn (sau MakeWindow).
+--     Đặt đúng tên cửa sổ để nhận diện chắc chắn:
+--        getgenv().LiquidOpts = { Title = "Redz Hub : Tên game" }
+--  Cách 2: dán file này lên ĐẦU script, rồi gọi sau khi tạo cửa sổ:
+--        task.spawn(LiquidGlassSkin, { Title = "Redz Hub : Tên game" })
+--  Tắt tự chạy:  getgenv().LiquidAuto = false   (trước khi nạp file)
+-- =====================================================================
+getgenv().LiquidGlassSkin = LiquidGlassSkin
+if getgenv().LiquidAuto ~= false then
+    task.spawn(function()
+        local ok, err = pcall(LiquidGlassSkin, getgenv().LiquidOpts or {})
+        if not ok then warn("[LiquidGlass] " .. tostring(err)) end
+    end)
+end
