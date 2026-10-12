@@ -1,0 +1,483 @@
+-- Thành_Adr Hub : Steal An Egg (UI Fluent)
+-- Đổi link bên dưới thành link Fluent liquid glass của bạn (cùng API Fluent: CreateWindow / AddTab / AddToggle...)
+local FLUENT_URL = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
+
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = Players.LocalPlayer
+
+local env = (getgenv and getgenv()) or _G
+if type(env.ThanhAdrEggShutdown) == "function" then
+	pcall(env.ThanhAdrEggShutdown)
+end
+
+local okUi, Fluent = pcall(function()
+	return loadstring(game:HttpGet(FLUENT_URL))()
+end)
+
+if not okUi or type(Fluent) ~= "table" then
+	warn("[Thành_Adr Hub] Không tải được UI Fluent: " .. tostring(Fluent))
+	return
+end
+
+---------------------------------------------------------------------
+-- Trạng thái chung
+---------------------------------------------------------------------
+local State = {
+	Running = true,
+	DeliverCFrame = nil,
+	WalkSpeed = 16,
+	JumpPower = 50,
+	GrabRange = 300,
+}
+
+local Connections = {}
+
+local function remotes()
+	local ok, result = pcall(function()
+		return require(ReplicatedStorage.Shared.Remotes)
+	end)
+	return ok and result or nil
+end
+
+local function eggState()
+	local ok, result = pcall(function()
+		return require(ReplicatedStorage.Client.EggState)
+	end)
+	return ok and result or nil
+end
+
+local function invoke(group, name, ...)
+	local R = remotes()
+	local args = table.pack(...)
+	local ok, result = pcall(function()
+		return R[group][name]:InvokeServer(table.unpack(args, 1, args.n))
+	end)
+	return ok, result
+end
+
+local function getRoot()
+	local char = LocalPlayer.Character
+	return char and char:FindFirstChild("HumanoidRootPart"), char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- Vòng lặp có bật/tắt theo Options
+local Options = Fluent.Options
+
+local function startLoop(optionId, interval, fn)
+	task.spawn(function()
+		while State.Running do
+			local opt = Options[optionId]
+			if opt and opt.Value then
+				local ok, err = pcall(fn)
+				if not ok then
+					warn("[Thành_Adr Hub] " .. optionId .. ": " .. tostring(err))
+				end
+			end
+			task.wait(interval)
+		end
+	end)
+end
+
+---------------------------------------------------------------------
+-- Cửa sổ + tab
+---------------------------------------------------------------------
+local Window = Fluent:CreateWindow({
+	Title = "Thành_Adr Hub",
+	SubTitle = "Steal An Egg",
+	TabWidth = 160,
+	Size = UDim2.fromOffset(580, 460),
+	Acrylic = true,
+	Theme = "Dark",
+	MinimizeKey = Enum.KeyCode.RightControl,
+})
+
+local Tabs = {
+	Main = Window:AddTab({ Title = "Chính", Icon = "home" }),
+	Eggs = Window:AddTab({ Title = "Trứng", Icon = "egg" }),
+	Player = Window:AddTab({ Title = "Người chơi", Icon = "user" }),
+	Settings = Window:AddTab({ Title = "Cài đặt", Icon = "settings" }),
+}
+
+---------------------------------------------------------------------
+-- Tab Chính: tiền / nâng cấp tự động
+---------------------------------------------------------------------
+Tabs.Main:AddSection("Tự động")
+
+Tabs.Main:AddToggle("AutoWearBest", {
+	Title = "Tự động mặc đồ tốt nhất",
+	Description = "Gọi Haul.WearBest mỗi 10 giây",
+	Default = false,
+})
+
+Tabs.Main:AddToggle("AutoClaimOffline", {
+	Title = "Tự động nhận tiền offline",
+	Description = "Nhận tiền khi có tiền chờ nhận",
+	Default = false,
+})
+
+Tabs.Main:AddToggle("AutoUpgradeBase", {
+	Title = "Tự động nâng cấp căn cứ",
+	Description = "Thử nâng cấp mỗi 5 giây (server từ chối nếu chưa đủ tiền)",
+	Default = false,
+})
+
+Tabs.Main:AddToggle("AutoCodex", {
+	Title = "Tự động nhận thưởng Codex",
+	Default = false,
+})
+
+Tabs.Main:AddSection("Làm ngay")
+
+Tabs.Main:AddButton({
+	Title = "Mặc đồ tốt nhất",
+	Callback = function()
+		invoke("Haul", "WearBest")
+	end,
+})
+
+Tabs.Main:AddButton({
+	Title = "Nhận tiền offline",
+	Callback = function()
+		local ok, result = invoke("AwayEarnings", "FetchSummary")
+		if ok and type(result) == "table" and (result.ClaimableAmount or 0) > 0 then
+			invoke("AwayEarnings", "AskCollect", { Kind = "Claim" })
+		end
+	end,
+})
+
+Tabs.Main:AddButton({
+	Title = "Nhận thưởng Codex",
+	Callback = function()
+		invoke("Codex", "AskRedeemAll")
+	end,
+})
+
+startLoop("AutoWearBest", 10, function()
+	invoke("Haul", "WearBest")
+end)
+
+startLoop("AutoClaimOffline", 15, function()
+	local ok, result = invoke("AwayEarnings", "FetchSummary")
+	if ok and type(result) == "table" and (result.ClaimableAmount or 0) > 0 then
+		invoke("AwayEarnings", "AskCollect", { Kind = "Claim" })
+	end
+end)
+
+startLoop("AutoUpgradeBase", 5, function()
+	invoke("Homestead", "AskBaseTierRaise")
+end)
+
+startLoop("AutoCodex", 30, function()
+	invoke("Codex", "AskRedeemAll")
+end)
+
+---------------------------------------------------------------------
+-- Tab Trứng: ESP + tự lấy trứng
+---------------------------------------------------------------------
+local function eggPosition(record)
+	local cf = record.BottomCFrame or record.BoundsCFrame
+	return cf and cf.Position
+end
+
+local function readEggs()
+	local ES = eggState()
+	if not ES then
+		return {}
+	end
+	local ok, snapshot = pcall(ES.ReadFieldEggs)
+	if ok and type(snapshot) == "table" and type(snapshot.Records) == "table" then
+		return snapshot.Records
+	end
+	return {}
+end
+
+-- ESP
+local espFolder = Instance.new("Folder")
+espFolder.Name = "ThanhAdrEggESP"
+espFolder.Parent = workspace
+local espItems = {}
+
+local function clearEsp()
+	for uid, part in pairs(espItems) do
+		part:Destroy()
+		espItems[uid] = nil
+	end
+end
+
+local function updateEsp()
+	local seen = {}
+	for _, record in ipairs(readEggs()) do
+		local uid = tostring(record.Uid)
+		local pos = eggPosition(record)
+		if pos then
+			seen[uid] = true
+			local part = espItems[uid]
+			if not part then
+				part = Instance.new("Part")
+				part.Anchored = true
+				part.CanCollide = false
+				part.CanQuery = false
+				part.Transparency = 1
+				part.Size = Vector3.new(1, 1, 1)
+				part.Parent = espFolder
+
+				local gui = Instance.new("BillboardGui")
+				gui.Name = "Tag"
+				gui.Size = UDim2.fromOffset(170, 34)
+				gui.AlwaysOnTop = true
+				gui.StudsOffset = Vector3.new(0, 3, 0)
+				gui.Adornee = part
+				gui.Parent = part
+
+				local label = Instance.new("TextLabel")
+				label.Name = "Label"
+				label.Size = UDim2.fromScale(1, 1)
+				label.BackgroundTransparency = 1
+				label.Font = Enum.Font.GothamBold
+				label.TextSize = 13
+				label.TextColor3 = Color3.fromRGB(255, 214, 102)
+				label.TextStrokeTransparency = 0.4
+				label.Parent = gui
+
+				espItems[uid] = part
+			end
+			part.Position = pos
+			local label = part:FindFirstChild("Tag") and part.Tag:FindFirstChild("Label")
+			if label then
+				local rootPart = getRoot()
+				local dist = rootPart and math.floor((rootPart.Position - pos).Magnitude) or 0
+				label.Text = string.format("%s [%s] %dm", tostring(record.AreaId or "Egg"), tostring(record.State or "?"), dist)
+			end
+		end
+	end
+	for uid, part in pairs(espItems) do
+		if not seen[uid] then
+			part:Destroy()
+			espItems[uid] = nil
+		end
+	end
+end
+
+Tabs.Eggs:AddSection("ESP")
+
+Tabs.Eggs:AddToggle("EggESP", {
+	Title = "ESP trứng ngoài field",
+	Description = "Hiện vị trí, trạng thái và khoảng cách của trứng",
+	Default = false,
+	Callback = function(value)
+		if not value then
+			clearEsp()
+		end
+	end,
+})
+
+startLoop("EggESP", 1, updateEsp)
+
+-- Tự lấy trứng
+Tabs.Eggs:AddSection("Tự lấy trứng (thử nghiệm)")
+
+Tabs.Eggs:AddParagraph({
+	Title = "Cách dùng",
+	Content = "Đứng ở điểm giao trứng của căn cứ rồi bấm \"Lưu điểm giao trứng\". Khi bật, script bay tới trứng gần nhất, nhặt rồi quay về điểm đã lưu.",
+})
+
+Tabs.Eggs:AddButton({
+	Title = "Lưu điểm giao trứng (vị trí hiện tại)",
+	Callback = function()
+		local root = getRoot()
+		if root then
+			State.DeliverCFrame = root.CFrame
+			Fluent:Notify({ Title = "Đã lưu điểm giao trứng", Content = "Sẽ quay về đây sau khi nhặt trứng", Duration = 3 })
+		end
+	end,
+})
+
+Tabs.Eggs:AddSlider("GrabRange", {
+	Title = "Khoảng cách tối đa tới trứng",
+	Default = 300,
+	Min = 50,
+	Max = 1500,
+	Rounding = 0,
+	Callback = function(value)
+		State.GrabRange = value
+	end,
+})
+
+Tabs.Eggs:AddToggle("AutoGrab", {
+	Title = "Tự động nhặt trứng gần nhất",
+	Default = false,
+})
+
+local function slotKeyFor(record)
+	local uid = tostring(record.Uid)
+	if record.AreaId == "Forest" or uid:find("^FirstArea") then
+		local key = "Forest:" .. tostring(record.NestId or "Slot_001")
+		pcall(function()
+			local identity = require(ReplicatedStorage.Shared.Util.AreaEggSlotIdentity)
+			if identity and record.AreaId and record.NestId then
+				key = identity.SlotKey(record.AreaId, record.NestId)
+			end
+		end)
+		return key
+	end
+	return nil
+end
+
+local function nearestEgg(root)
+	local best, bestDist
+	for _, record in ipairs(readEggs()) do
+		local free = (record.State == "Slot" or record.State == "Dropped")
+			and (not record.CarrierUserId or record.CarrierUserId == LocalPlayer.UserId)
+		local pos = eggPosition(record)
+		if free and pos then
+			local dist = (pos - root.Position).Magnitude
+			if dist <= State.GrabRange and (not bestDist or dist < bestDist) then
+				best, bestDist = record, dist
+			end
+		end
+	end
+	return best
+end
+
+startLoop("AutoGrab", 0.7, function()
+	local root, humanoid = getRoot()
+	if not root or not humanoid or humanoid.Health <= 0 then
+		return
+	end
+
+	local record = nearestEgg(root)
+	if not record then
+		return
+	end
+
+	local pos = eggPosition(record)
+	root.CFrame = CFrame.new(pos.X, pos.Y + 2.5, pos.Z)
+	root.AssemblyLinearVelocity = Vector3.zero
+	task.wait(0.15)
+
+	local params = { Uid = record.Uid }
+	local slotKey = slotKeyFor(record)
+	if slotKey then
+		params.FirstAreaSlotKey = slotKey
+	end
+	invoke("EggWorld", "AskFieldEggCarry", params)
+
+	local ES = eggState()
+	local carried = false
+	if ES then
+		local ok, current = pcall(ES.ReadFieldEgg, record.Uid)
+		carried = ok and type(current) == "table" and current.State == "Carried" and current.CarrierUserId == LocalPlayer.UserId
+	end
+
+	if carried and State.DeliverCFrame then
+		task.wait(0.2)
+		local rootNow = getRoot()
+		if rootNow then
+			rootNow.CFrame = State.DeliverCFrame
+			rootNow.AssemblyLinearVelocity = Vector3.zero
+		end
+		task.wait(1)
+	end
+end)
+
+---------------------------------------------------------------------
+-- Tab Người chơi
+---------------------------------------------------------------------
+Tabs.Player:AddSection("Di chuyển")
+
+Tabs.Player:AddToggle("SpeedOn", {
+	Title = "Chỉnh tốc độ chạy",
+	Default = false,
+})
+
+Tabs.Player:AddSlider("SpeedValue", {
+	Title = "Tốc độ chạy",
+	Default = 16,
+	Min = 16,
+	Max = 120,
+	Rounding = 0,
+	Callback = function(value)
+		State.WalkSpeed = value
+	end,
+})
+
+Tabs.Player:AddToggle("JumpOn", {
+	Title = "Chỉnh lực nhảy",
+	Default = false,
+})
+
+Tabs.Player:AddSlider("JumpValue", {
+	Title = "Lực nhảy",
+	Default = 50,
+	Min = 50,
+	Max = 200,
+	Rounding = 0,
+	Callback = function(value)
+		State.JumpPower = value
+	end,
+})
+
+Tabs.Player:AddSection("Khác")
+
+Tabs.Player:AddToggle("AntiAfk", {
+	Title = "Chống AFK",
+	Default = true,
+})
+
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+	local _, humanoid = getRoot()
+	if not humanoid then
+		return
+	end
+	if Options.SpeedOn and Options.SpeedOn.Value then
+		humanoid.WalkSpeed = State.WalkSpeed
+	end
+	if Options.JumpOn and Options.JumpOn.Value then
+		humanoid.UseJumpPower = true
+		humanoid.JumpPower = State.JumpPower
+	end
+end))
+
+table.insert(Connections, LocalPlayer.Idled:Connect(function()
+	if Options.AntiAfk and Options.AntiAfk.Value then
+		VirtualUser:CaptureController()
+		VirtualUser:ClickButton2(Vector2.new())
+	end
+end))
+
+---------------------------------------------------------------------
+-- Tab Cài đặt
+---------------------------------------------------------------------
+Tabs.Settings:AddSection("Script")
+
+Tabs.Settings:AddButton({
+	Title = "Tắt script",
+	Description = "Dừng mọi vòng lặp và đóng giao diện",
+	Callback = function()
+		if type(env.ThanhAdrEggShutdown) == "function" then
+			env.ThanhAdrEggShutdown()
+		end
+	end,
+})
+
+env.ThanhAdrEggShutdown = function()
+	State.Running = false
+	for _, connection in ipairs(Connections) do
+		connection:Disconnect()
+	end
+	clearEsp()
+	espFolder:Destroy()
+	pcall(function()
+		Fluent:Destroy()
+	end)
+	env.ThanhAdrEggShutdown = nil
+end
+
+Window:SelectTab(1)
