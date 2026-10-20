@@ -1,0 +1,2557 @@
+local function RaitoLoadUserGlass()
+--[[
+    FluentGlass LIQUID  -  Fluent + Liquid Glass (Roblox, hỗ trợ cảm ứng)
+    Kiểu: kính xám mờ, mọi khối có viền sáng bo tròn, thanh tìm kiếm, dropdown nổi, hiệu ứng "lỏng".
+
+    local Library = loadstring(readfile("FluentGlass_Liquid.lua"))()
+    local Window  = Library:CreateWindow({Title="Example Hub", SubTitle="v1.1.0", Theme="Obsidian White"})
+    local Tab     = Window:AddTab("Main", "⌂")
+    Tab:AddSection("Tên mục")
+    Tab:AddLabel("Nội dung")
+    Tab:AddButton("Tên", function() end, "mô tả (tuỳ chọn)")
+    Tab:AddToggle("Tên", false, function(v) end, "mô tả")
+    Tab:AddSlider("Tên", 0, 100, 50, function(v) end, "mô tả")
+    Tab:AddDropdown("Tên", {"A","B"}, "A", function(v) end, "mô tả")
+    Tab:AddInput("Tên", "gợi ý", function(text) end, "mô tả")
+    (hoặc truyền bảng: Tab:AddToggle({Title=..., Description=..., Default=..., Callback=...}))
+    Library:Notify("Tiêu đề", "Nội dung", 4)      -- duration = 0 -> không tự tắt
+    Library:SetTheme("Midnight Blue")               -- Obsidian White / Midnight Blue / Crimson Dark / Ember / Neon Crimson
+    Library:SetGlass(0..1)                          -- 0 trong suốt ... 1 mờ đục (mặc định 0.5)
+    Window:Toggle()  Window:Maximize()  Window:Destroy()
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+
+local Library = { Windows = {}, GlassLevel = 0.62, Effects = true }
+
+local WHITE = Color3.new(1, 1, 1)
+local TEXT = Color3.fromRGB(246, 248, 252)
+local SUB = Color3.fromRGB(196, 202, 212)
+
+Library.Themes = {
+    ["Obsidian White"] = { Tint = Color3.fromRGB(88, 92, 98), Accent = Color3.fromRGB(240, 244, 252) },
+    ["Midnight Blue"] = { Tint = Color3.fromRGB(38, 54, 96), Accent = Color3.fromRGB(120, 170, 255) },
+    ["Crimson Dark"] = { Tint = Color3.fromRGB(86, 34, 42), Accent = Color3.fromRGB(255, 110, 120) },
+    ["Ember"] = { Tint = Color3.fromRGB(98, 62, 34), Accent = Color3.fromRGB(255, 170, 90) },
+    ["Neon Crimson"] = { Tint = Color3.fromRGB(62, 24, 52), Accent = Color3.fromRGB(255, 70, 160) },
+}
+Library.ThemeName = "Obsidian White"
+Library.Tint = Library.Themes["Obsidian White"].Tint
+Library.Accent = Library.Themes["Obsidian White"].Accent
+
+-- ========== Tiện ích ==========
+local GlassItems = {}   -- mọi khung kính (để chỉnh độ kính / theme)
+local AccentItems = {}  -- {object, property} dùng màu nhấn
+local Irid = {}         -- gradient viền cầu vồng
+local iridConn
+
+local function new(class, props, children)
+    local o = Instance.new(class)
+    if class == "TextLabel" or class == "TextButton" or class == "TextBox" then
+        o.TextStrokeColor3 = Color3.fromRGB(10, 20, 40)
+        o.TextStrokeTransparency = 0.9
+    end
+    for k, v in pairs(props or {}) do o[k] = v end
+    for _, c in ipairs(children or {}) do c.Parent = o end
+    return o
+end
+
+local function tween(o, t, props, style, dir)
+    local tw = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out), props)
+    tw:Play()
+    return tw
+end
+
+local function kp(t, v) return NumberSequenceKeypoint.new(t, v) end
+local function corner(r) return new("UICorner", { CornerRadius = UDim.new(0, r) }) end
+local function pad(l, t, r, b)
+    return new("UIPadding", {
+        PaddingLeft = UDim.new(0, l), PaddingTop = UDim.new(0, t),
+        PaddingRight = UDim.new(0, r or l), PaddingBottom = UDim.new(0, b or t),
+    })
+end
+
+local function accentize(obj, prop)
+    table.insert(AccentItems, { obj, prop })
+    obj[prop] = Library.Accent
+end
+
+local function isPress(i)
+    return i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch
+end
+local function isMove(i)
+    return i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch
+end
+-- Vị trí trong hệ toạ độ ScreenGui (IgnoreGuiInset = true) -> cộng thêm inset
+local function screenPos(i)
+    return Vector2.new(i.Position.X, i.Position.Y) + GuiService:GetGuiInset()
+end
+
+local function ensureIridAnim()
+    if iridConn then return end
+    local t0 = os.clock()
+    iridConn = RunService.Heartbeat:Connect(function()
+        local rot = (225 + (os.clock() - t0) * 45) % 360
+        for i = #Irid, 1, -1 do
+            local g = Irid[i]
+            if g.Parent then g.Rotation = rot else table.remove(Irid, i) end
+        end
+    end)
+end
+
+-- Viền kính. uniform=true: viền đều kiểu "outline" (hàng, nút); false: sáng 2 góc (cửa sổ)
+local function glassStroke(parent, thickness, strength, uniform)
+    local s = new("UIStroke", {
+        Thickness = thickness or 1.5, Color = WHITE, Transparency = strength or 0.3,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
+    local seq = uniform and NumberSequence.new({ kp(0, 0), kp(0.5, 0.4), kp(1, 0) })
+        or NumberSequence.new({ kp(0, 0), kp(0.3, 0.6), kp(0.5, 0.92), kp(0.75, 0.6), kp(1, 0.05) })
+    new("UIGradient", { Rotation = 45, Transparency = seq }).Parent = s
+    s.Parent = parent
+    return s
+end
+
+local function glassShine(parent, radius)
+    local f = new("Frame", {
+        Name = "Shine", BackgroundColor3 = WHITE, BackgroundTransparency = 0.7,
+        Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, ZIndex = parent.ZIndex, Active = false,
+    }, { corner(radius) })
+    new("UIGradient", {
+        Rotation = 90,
+        Transparency = NumberSequence.new({ kp(0, 0.1), kp(0.2, 0.55), kp(0.5, 0.93), kp(0.78, 1), kp(1, 0.6) }),
+    }).Parent = f
+    f.Parent = parent
+    return f
+end
+
+-- o.light = true: chỉ nền + viền + bóng (nhẹ, dùng cho hàng/nút nhỏ)
+-- o.themed = true: màu nền theo theme
+-- o.uniform = true: viền đều
+local function glass(parent, props, radius, transparency, o)
+    o = o or {}
+    local r = radius or 12
+    local f = new("Frame", { BackgroundColor3 = WHITE, BackgroundTransparency = transparency or 0.5, BorderSizePixel = 0 })
+    for k, v in pairs(props or {}) do f[k] = v end
+    corner(r).Parent = f
+    glassStroke(f, o.uniform and 1.3 or 1.5, o.uniform and 0.36 or 0.2, o.uniform)
+    glassShine(f, r)
+    if not o.light and r >= 16 then
+        -- điểm chói như ánh đèn phản chiếu trên mặt kính cong
+        local glint = new("Frame", {
+            Name = "Glint", BackgroundColor3 = WHITE, BackgroundTransparency = 0.78, BorderSizePixel = 0,
+            Position = UDim2.new(0.07, 0, 0, 5), Size = UDim2.new(0.46, 0, 0, math.max(6, math.floor(r * 0.34))),
+            Active = false, ZIndex = f.ZIndex,
+        }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+        new("UIGradient", { Transparency = NumberSequence.new({ kp(0, 0.15), kp(0.55, 0.7), kp(1, 1) }) }).Parent = glint
+        glint.Parent = f
+    end
+    if not o.light then
+        -- đáy tối nhẹ: tách lớp kính
+        local depth = new("Frame", {
+            Name = "Depth", BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0,
+            Size = UDim2.fromScale(1, 1), Active = false,
+        }, { corner(r) })
+        new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ kp(0, 1), kp(0.6, 1), kp(1, 0.82) }) }).Parent = depth
+        depth.Parent = f
+        -- viền khúc xạ trong, màu cầu vồng xoay
+        if r >= 16 then
+            local rim = new("Frame", {
+                Name = "Rim", BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3),
+                Size = UDim2.new(1, -6, 1, -6), Active = false,
+            }, { corner(r - 3) })
+            local st = new("UIStroke", { Thickness = 1.3, Color = WHITE, Transparency = 0.4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+            local ig = new("UIGradient", {
+                Rotation = 225,
+                Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 230, 255)),
+                    ColorSequenceKeypoint.new(0.35, WHITE),
+                    ColorSequenceKeypoint.new(0.65, Color3.fromRGB(255, 160, 235)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 235, 150)),
+                }),
+                Transparency = NumberSequence.new({ kp(0, 0.1), kp(0.35, 0.85), kp(0.65, 0.85), kp(1, 0.1) }),
+            })
+            ig.Parent = st
+            table.insert(Irid, ig)
+            ensureIridAnim()
+            st.Parent = rim
+            rim.Parent = f
+        end
+    end
+    if not o.light and r >= 20 then
+        -- tán sắc: hai viền đỏ/xanh lệch nhau 1px như mép thấu kính thật
+        for _, c in ipairs({ { Color3.fromRGB(255, 90, 130), 1 }, { Color3.fromRGB(80, 210, 255), -1 } }) do
+            local ch = new("Frame", {
+                Name = "Chroma", BackgroundTransparency = 1, Position = UDim2.fromOffset(c[2], 0),
+                Size = UDim2.fromScale(1, 1), Active = false,
+            }, { corner(r) })
+            new("UIStroke", { Thickness = 1, Color = c[1], Transparency = 0.8, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }).Parent = ch
+            ch.Parent = f
+        end
+    end
+    f:SetAttribute("GT", f.BackgroundTransparency)
+    table.insert(GlassItems, {
+        f = f, base = f.BackgroundColor3, themed = o.themed,
+        clear = math.min(0.98, f.BackgroundTransparency + 0.3), tinted = math.max(0.2, f.BackgroundTransparency - 0.3),
+    })
+    f.Parent = parent
+    return f
+end
+
+local function applyGlass(animate)
+    local level = Library.GlassLevel
+    local alive = {}
+    for _, it in ipairs(GlassItems) do
+        if it.f and it.f.Parent then
+            table.insert(alive, it)
+            local t = it.clear + (it.tinted - it.clear) * level
+            local base = it.themed and Library.Tint or it.base
+            local col
+            if level < 0.5 then col = base:Lerp(WHITE, (0.5 - level) * 0.6)
+            else col = base:Lerp(Color3.fromRGB(24, 28, 38), (level - 0.5) * 1.4) end
+            it.f:SetAttribute("GT", t)
+            if animate then tween(it.f, 0.25, { BackgroundTransparency = t, BackgroundColor3 = col })
+            else it.f.BackgroundTransparency = t; it.f.BackgroundColor3 = col end
+        end
+    end
+    GlassItems = alive
+    for _, w in ipairs(Library.Windows) do
+        if w.Blur and w.Visible then tween(w.Blur, 0.3, { Size = 14 + level * 14 }) end
+    end
+end
+
+function Library:SetGlass(level)
+    Library.GlassLevel = math.clamp(level or 0.5, 0, 1)
+    applyGlass(true)
+end
+
+function Library:SetEffects(on)
+    Library.Effects = on and true or false
+    for _, w in ipairs(Library.Windows) do
+        if w.Fx and w.Fx.Parent then w.Fx.Visible = Library.Effects end
+    end
+end
+
+function Library:SetTheme(name)
+    local th = Library.Themes[name]
+    if not th then return end
+    Library.ThemeName, Library.Tint, Library.Accent = name, th.Tint, th.Accent
+    local alive = {}
+    for _, e in ipairs(AccentItems) do
+        if e[1] and e[1].Parent then table.insert(alive, e); tween(e[1], 0.3, { [e[2]] = th.Accent }) end
+    end
+    AccentItems = alive
+    applyGlass(true)
+end
+
+local function gui_parent()
+    local ok, h = pcall(function() return gethui and gethui() end)
+    if ok and h then return h end
+    local ok2 = pcall(function() return game:GetService("CoreGui"):GetChildren() end)
+    if ok2 then return game:GetService("CoreGui") end
+    return Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- ========== Thông báo ==========
+local notifyGui, notifyHolder
+function Library:Notify(title, content, duration)
+    if not notifyGui or not notifyGui.Parent then
+        notifyGui = new("ScreenGui", { Name = "FluentGlassNotify", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 999 })
+        notifyGui.Parent = gui_parent()
+        notifyHolder = new("Frame", {
+            BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(270, 400),
+        }, { new("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder }) })
+        notifyHolder.Parent = notifyGui
+    end
+    local card = glass(notifyHolder, { Size = UDim2.fromOffset(270, 0), AutomaticSize = Enum.AutomaticSize.Y }, 20, 0.4, { themed = true })
+    card.Position = UDim2.fromOffset(320, 0)
+    pad(14, 10).Parent = card
+    local list = new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+    -- UIListLayout chỉ áp cho 2 nhãn: đặt trong khung chứa riêng
+    local body = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 3, Parent = card }, { list })
+    new("TextLabel", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Font = Enum.Font.GothamBold, TextSize = 14, LayoutOrder = 1,
+        TextColor3 = TEXT, TextXAlignment = Enum.TextXAlignment.Left, Text = tostring(title), ZIndex = 3, Parent = body,
+    })
+    new("TextLabel", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2,
+        Font = Enum.Font.Gotham, TextSize = 13, TextWrapped = true, TextColor3 = SUB,
+        TextXAlignment = Enum.TextXAlignment.Left, Text = tostring(content or ""), ZIndex = 3, Parent = body,
+    })
+    tween(card, 0.7, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Elastic)
+    local function dismiss()
+        if card.Parent then
+            tween(card, 0.3, { Position = UDim2.fromOffset(320, 0) })
+            task.wait(0.32)
+            card:Destroy()
+        end
+    end
+    if duration == 0 then
+        local x = new("TextButton", {
+            BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, -4), Size = UDim2.fromOffset(22, 22),
+            Text = "✕", Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = SUB, ZIndex = 6, Parent = card,
+        })
+        x.MouseButton1Click:Connect(function() task.spawn(dismiss) end)
+    else
+        task.delay(duration or 4, dismiss)
+    end
+end
+
+-- ========== Panel dropdown nổi ==========
+local activePanel
+local function closePanel()
+    if activePanel then
+        local p = activePanel
+        activePanel = nil
+        p()
+    end
+end
+
+local function openPanel(screen, anchor, options, selected, onPick)
+    closePanel()
+    local catcher = new("TextButton", {
+        BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Size = UDim2.fromScale(1, 1), ZIndex = 60, Parent = screen,
+    })
+    local ap, as, vp = anchor.AbsolutePosition, anchor.AbsoluteSize, screen.AbsoluteSize
+    local pw = math.max(as.X, 220)
+    local ph = math.min(64 + #options * 40, 290)
+    local x = math.clamp(ap.X + as.X - pw, 8, math.max(8, vp.X - pw - 8))
+    local y = ap.Y + as.Y + 8
+    if y + ph > vp.Y - 8 then y = math.max(8, ap.Y - ph - 8) end
+
+    local panel = glass(screen, {
+        Size = UDim2.fromOffset(as.X, as.Y), Position = UDim2.fromOffset(ap.X, ap.Y), ZIndex = 61, ClipsDescendants = true,
+    }, 22, 0.38, { themed = true })
+    applyGlass(false)
+
+    local sbox = new("Frame", {
+        BackgroundColor3 = WHITE, BackgroundTransparency = 0.9, Position = UDim2.fromOffset(10, 10), Size = UDim2.new(1, -20, 0, 34), ZIndex = 63, Parent = panel,
+    }, { corner(17) })
+    glassStroke(sbox, 1.2, 0.45, true)
+    new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 0), Size = UDim2.fromOffset(18, 34), Text = "⌕", Font = Enum.Font.GothamBold, TextSize = 17, TextColor3 = SUB, ZIndex = 64, Parent = sbox })
+    local search = new("TextBox", {
+        BackgroundTransparency = 1, Position = UDim2.fromOffset(34, 0), Size = UDim2.new(1, -44, 1, 0), ClearTextOnFocus = false, Text = "",
+        PlaceholderText = "Search...", PlaceholderColor3 = SUB, Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = TEXT,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 64, Parent = sbox,
+    })
+
+    local list = new("ScrollingFrame", {
+        BackgroundTransparency = 1, Position = UDim2.fromOffset(6, 52), Size = UDim2.new(1, -12, 1, -58), BorderSizePixel = 0,
+        CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 3, ScrollBarImageTransparency = 0.4, ZIndex = 63, Parent = panel,
+    }, { new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }) })
+
+    local function build(filter)
+        for _, c in ipairs(list:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+        for idx, opt in ipairs(options) do
+            local name = tostring(opt)
+            if filter == "" or string.find(string.lower(name), filter, 1, true) then
+                local on = (opt == selected)
+                local b = new("TextButton", {
+                    BackgroundColor3 = WHITE, BackgroundTransparency = on and 0.82 or 1, Size = UDim2.new(1, -4, 0, 36), LayoutOrder = idx,
+                    AutoButtonColor = false, Text = name, Font = Enum.Font.Gotham, TextSize = 14, TextColor3 = TEXT,
+                    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 64, Parent = list,
+                }, { corner(18), pad(16, 0, 30, 0) })
+                if on then
+                    glassStroke(b, 1.3, 0.35, true)
+                    local bar = new("Frame", { BorderSizePixel = 0, Position = UDim2.new(0, 3, 0.5, -9), Size = UDim2.fromOffset(3, 18), ZIndex = 65, Parent = b }, { corner(2) })
+                    accentize(bar, "BackgroundColor3")
+                    new("TextLabel", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -4, 0.5, 0), Size = UDim2.fromOffset(16, 16), Text = "●", TextSize = 10, Font = Enum.Font.GothamBold, TextColor3 = TEXT, ZIndex = 65, Parent = b })
+                end
+                b.MouseEnter:Connect(function() if not on then tween(b, 0.15, { BackgroundTransparency = 0.9 }) end end)
+                b.MouseLeave:Connect(function() if not on then tween(b, 0.2, { BackgroundTransparency = 1 }) end end)
+                b.MouseButton1Click:Connect(function()
+                    selected = opt
+                    onPick(opt)
+                    closePanel()
+                end)
+            end
+        end
+    end
+    build("")
+    search:GetPropertyChangedSignal("Text"):Connect(function() build(string.lower(search.Text)) end)
+
+    tween(panel, 0.8, { Size = UDim2.fromOffset(pw, ph), Position = UDim2.fromOffset(x, y) }, Enum.EasingStyle.Elastic)
+
+    activePanel = function()
+        catcher:Destroy()
+        tween(panel, 0.25, { Size = UDim2.fromOffset(as.X, as.Y), Position = UDim2.fromOffset(ap.X, ap.Y), BackgroundTransparency = 1 })
+        task.delay(0.27, function() panel:Destroy() end)
+    end
+    catcher.MouseButton1Click:Connect(closePanel)
+end
+
+-- ========== Cửa sổ ==========
+function Library:CreateWindow(cfg)
+    cfg = cfg or {}
+    if cfg.Theme then Library:SetTheme(cfg.Theme) end
+    local Window = { Tabs = {}, Visible = true, Maximized = false }
+
+    local screen = new("ScreenGui", { Name = "FluentGlassLiquid", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
+    screen.Parent = gui_parent()
+    Window.Gui = screen
+
+    local blur
+    if cfg.Blur ~= false then
+        blur = new("BlurEffect", { Name = "FluentGlassBlur", Size = 0 })
+        blur.Parent = Lighting
+        Window.Blur = blur
+    end
+
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(900, 600)
+    local w = math.min(cfg.Width or 660, vp.X - 24)
+    local h = math.min(cfg.Height or 410, vp.Y - 48)
+    local compact = w < 540
+    local sideW = compact and 56 or 190
+    Library.ContentWidth = w - sideW - 56
+    local curW, curH = w, h
+
+    local main = glass(screen, {
+        Name = "Main", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(w, h),
+    }, 28, 0.42, { themed = true })
+    applyGlass(false)
+    Window.Main = main
+
+    main.Size = UDim2.fromOffset(w * 0.9, h * 0.9)
+    tween(main, 0.9, { Size = UDim2.fromOffset(w, h) }, Enum.EasingStyle.Elastic)
+    if blur then tween(blur, 0.6, { Size = 14 + Library.GlassLevel * 14 }) end
+
+    -- Vạch sáng mép trên + đèn rọi bám theo ngón tay
+    local topLine = new("Frame", { BackgroundColor3 = WHITE, BorderSizePixel = 0, Active = false, ZIndex = 2, Position = UDim2.new(0, 40, 0, 2), Size = UDim2.new(1, -80, 0, 1), Parent = main })
+    new("UIGradient", { Transparency = NumberSequence.new({ kp(0, 1), kp(0.5, 0.15), kp(1, 1) }) }).Parent = topLine
+
+    local glowClip = new("Frame", { BackgroundTransparency = 1, ClipsDescendants = true, Active = false, ZIndex = 2, Position = UDim2.fromOffset(14, 14), Size = UDim2.new(1, -28, 1, -28), Parent = main })
+    -- Lớp "chất lỏng": cực quang trôi chậm + bong bóng nổi (tắt bằng Library:SetEffects(false))
+    local fx = new("Frame", { Name = "Fx", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Active = false, ZIndex = 2, Visible = Library.Effects, Parent = glowClip })
+    Window.Fx = fx
+    local blobs, bubbles = {}, {}
+    for k = 1, 3 do
+        local root = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 0), Active = false, ZIndex = 2, Parent = fx })
+        for _, d in ipairs({ { 300, 0.95 }, { 190, 0.93 }, { 100, 0.91 } }) do
+            local c = new("Frame", {
+                AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(d[1], d[1]), BorderSizePixel = 0,
+                BackgroundTransparency = d[2], Active = false, ZIndex = 2, Parent = root,
+            }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+            accentize(c, "BackgroundColor3")
+        end
+        blobs[k] = root
+    end
+    for k = 1, 8 do
+        local sz = 12 + (k * 7) % 28
+        local b = new("Frame", {
+            BackgroundColor3 = WHITE, BackgroundTransparency = 0.92, Size = UDim2.fromOffset(sz, sz), BorderSizePixel = 0,
+            Active = false, ZIndex = 2, Parent = fx,
+        }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+        new("UIStroke", { Thickness = 1, Color = WHITE, Transparency = 0.5, Parent = b })
+        bubbles[k] = { f = b, x = (k * 0.137) % 1, y = (k * 0.31) % 1, sp = 0.02 + 0.012 * (k % 4), ph = k * 1.7 }
+    end
+    local fxConn = RunService.Heartbeat:Connect(function(dt)
+        if not Library.Effects or not main.Visible then return end
+        local t, sz = os.clock(), glowClip.AbsoluteSize
+        for k, root in ipairs(blobs) do
+            root.Position = UDim2.fromOffset(sz.X * (0.5 + 0.42 * math.sin(t * 0.23 * k + k)), sz.Y * (0.5 + 0.42 * math.cos(t * 0.19 * k + k * 2)))
+        end
+        for _, bb in ipairs(bubbles) do
+            bb.y = bb.y - bb.sp * dt
+            if bb.y < -0.1 then bb.y = 1.1 end
+            bb.f.Position = UDim2.fromOffset(sz.X * (bb.x + 0.03 * math.sin(t + bb.ph)), sz.Y * bb.y)
+        end
+    end)
+    local glowRoot = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 0), Active = false, ZIndex = 2, Parent = glowClip })
+    for _, d in ipairs({ { 320, 0.968 }, { 210, 0.958 }, { 120, 0.945 }, { 56, 0.925 } }) do
+        new("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(d[1], d[1]), BackgroundColor3 = WHITE,
+            BackgroundTransparency = d[2], BorderSizePixel = 0, Active = false, ZIndex = 2, Parent = glowRoot,
+        }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+    end
+    local glowTarget = Vector2.new(w * 0.3, h * 0.25)
+    local glowPos = glowTarget
+    local function setGlow(i) glowTarget = screenPos(i) - glowClip.AbsolutePosition end
+    local glowIn1 = UIS.InputChanged:Connect(function(i) if main.Visible and isMove(i) then setGlow(i) end end)
+    local glowIn2 = UIS.InputBegan:Connect(function(i) if main.Visible and isPress(i) then setGlow(i) end end)
+    local glowConn = RunService.Heartbeat:Connect(function(dt)
+        glowPos = glowPos:Lerp(glowTarget, math.clamp(dt * 8, 0, 1))
+        glowRoot.Position = UDim2.fromOffset(glowPos.X, glowPos.Y)
+    end)
+    local sheen = main:FindFirstChild("Shine") and main.Shine:FindFirstChildOfClass("UIGradient")
+    local sheenConn
+    if sheen then
+        local t0 = os.clock()
+        sheenConn = RunService.Heartbeat:Connect(function()
+            local t = os.clock() - t0
+            sheen.Rotation = 90 + math.sin(t * 0.6) * 18
+            sheen.Offset = Vector2.new(math.sin(t * 0.4) * 0.12, 0)
+        end)
+    end
+
+    -- Thanh tiêu đề
+    local top = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 48), ZIndex = 4, Parent = main })
+    local logo = new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 0), Size = UDim2.fromOffset(24, 48), Text = "◈", Font = Enum.Font.GothamBold, TextSize = 20, ZIndex = 5, Parent = top })
+    accentize(logo, "TextColor3")
+    local titleLbl = new("TextLabel", {
+        BackgroundTransparency = 1, Position = UDim2.fromOffset(48, 0), Size = UDim2.new(1, -210, 1, 0), Font = Enum.Font.GothamBold, TextSize = 16,
+        TextColor3 = TEXT, TextXAlignment = Enum.TextXAlignment.Left, Text = cfg.Title or "FluentGlass", ZIndex = 5, Parent = top,
+    })
+    if cfg.SubTitle and cfg.SubTitle ~= "" then
+        titleLbl.RichText = true
+        titleLbl.Text = (cfg.Title or "FluentGlass") .. '  <font color="rgb(170,176,188)" weight="regular">| ' .. cfg.SubTitle .. "</font>"
+    end
+    -- Nút cửa sổ kiểu Fluent:  –   ▢   ✕   (vẽ bằng khung, không phụ thuộc font)
+    local function winBtn(kind, xOff)
+        local isClose = (kind == "close")
+        local b = new("TextButton", {
+            BackgroundColor3 = isClose and Color3.fromRGB(232, 72, 85) or WHITE, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, xOff, 0.5, 0), Size = UDim2.fromOffset(38, 30), Text = "", AutoButtonColor = false, ZIndex = 6, Parent = top,
+        }, { corner(8) })
+        local parts = {}   -- {đối tượng, thuộc tính màu}
+        local function stroke(parent, thick)
+            local st = new("UIStroke", { Thickness = thick, Color = SUB, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = parent })
+            table.insert(parts, { st, "Color" })
+        end
+        local function line(rot)
+            local f = new("Frame", {
+                AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(kind == "min" and 12 or 15, 2),
+                BackgroundColor3 = SUB, BorderSizePixel = 0, Rotation = rot or 0, ZIndex = 7, Active = false, Parent = b,
+            }, { corner(1) })
+            table.insert(parts, { f, "BackgroundColor3" })
+        end
+        if kind == "min" then
+            line(0)
+        elseif kind == "max" then
+            local sq = new("Frame", {
+                AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(11, 11),
+                BackgroundTransparency = 1, ZIndex = 7, Active = false, Parent = b,
+            }, { corner(2) })
+            stroke(sq, 1.6)
+        else
+            line(45); line(-45)
+        end
+        b.MouseEnter:Connect(function()
+            tween(b, 0.15, { BackgroundTransparency = isClose and 0.15 or 0.88 })
+            for _, p in ipairs(parts) do tween(p[1], 0.15, { [p[2]] = isClose and WHITE or TEXT }) end
+        end)
+        b.MouseLeave:Connect(function()
+            tween(b, 0.2, { BackgroundTransparency = 1 })
+            for _, p in ipairs(parts) do tween(p[1], 0.2, { [p[2]] = SUB }) end
+        end)
+        return b
+    end
+    local closeBtn = winBtn("close", -8)
+    local maxBtn = winBtn("max", -50)
+    local minBtn = winBtn("min", -92)
+    new("Frame", { BackgroundColor3 = WHITE, BackgroundTransparency = 0.85, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 48), Size = UDim2.new(1, 0, 0, 1), ZIndex = 4, Parent = main })
+
+    -- Kéo cửa sổ (nghiêng nhẹ như thạch)
+    do
+        local dragging, startPos, startInput, lastX
+        top.InputBegan:Connect(function(i)
+            if isPress(i) then dragging, startPos, startInput, lastX = true, main.Position, i.Position, i.Position.X end
+        end)
+        UIS.InputChanged:Connect(function(i)
+            if dragging and isMove(i) then
+                local d = i.Position - startInput
+                main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+                local vx = i.Position.X - lastX
+                lastX = i.Position.X
+                main.Rotation = main.Rotation + (math.clamp(vx * 0.3, -3.5, 3.5) - main.Rotation) * 0.3
+            end
+        end)
+        UIS.InputEnded:Connect(function(i)
+            if isPress(i) and dragging then
+                dragging = false
+                tween(main, 0.7, { Rotation = 0 }, Enum.EasingStyle.Elastic)
+            end
+        end)
+    end
+
+    -- Thanh bên: ô tìm kiếm + tab
+    local side = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 58), Size = UDim2.new(0, sideW, 1, -70), ZIndex = 3, Parent = main })
+    local sbox = glass(side, { Size = UDim2.new(1, 0, 0, 38), ZIndex = 4 }, 19, 0.92, { light = true, uniform = true })
+    new("TextLabel", { BackgroundTransparency = 1, Position = UDim2.fromOffset(compact and 0 or 12, 0), Size = UDim2.fromOffset(compact and 56 or 20, 38), Text = "⌕", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = SUB, ZIndex = 6, Parent = sbox })
+    local searchBox = new("TextBox", {
+        BackgroundTransparency = 1, Position = UDim2.fromOffset(36, 0), Size = UDim2.new(1, -46, 1, 0), ClearTextOnFocus = false, Text = "",
+        PlaceholderText = "Search...", PlaceholderColor3 = SUB, Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = TEXT,
+        TextXAlignment = Enum.TextXAlignment.Left, Visible = not compact, ZIndex = 6, Parent = sbox,
+    })
+    local tabsArea = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 48), Size = UDim2.new(1, 0, 1, -48), ZIndex = 3, Parent = side })
+    local lens = glass(tabsArea, { Size = UDim2.new(1, 0, 0, 40), ZIndex = 3 }, 20, 0.8, { uniform = true })
+    lens.Visible = false
+    local sideList = new("ScrollingFrame", {
+        BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 0, BorderSizePixel = 0, ZIndex = 4, Parent = tabsArea,
+    }, { new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }) })
+
+    local pages = new("Frame", {
+        BackgroundTransparency = 1, Position = UDim2.fromOffset(sideW + 26, 58), Size = UDim2.new(1, -(sideW + 38), 1, -70), ZIndex = 3, Parent = main,
+    })
+
+    -- Tìm kiếm: lọc các hàng của mọi trang
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local q = string.lower(searchBox.Text)
+        for _, t in ipairs(Window.Tabs) do
+            for _, c in ipairs(t.Page:GetChildren()) do
+                local key = c:GetAttribute("SearchKey")
+                if key then c.Visible = (q == "") or (string.find(key, q, 1, true) ~= nil) end
+            end
+        end
+    end)
+
+    -- Nút tròn nổi khi thu nhỏ
+    local orb = glass(screen, { Name = "Orb", Visible = false, Position = UDim2.fromOffset(16, 120), Size = UDim2.fromOffset(52, 52) }, 26, 0.45, { themed = true })
+    applyGlass(false)
+    -- Ảnh trên nút tròn nổi (đổi bằng cfg.OrbImage = "rbxassetid://...")
+    new("ImageLabel", {
+        BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, -10, 1, -10),
+        Image = cfg.OrbImage or "rbxassetid://127729348105692", ScaleType = Enum.ScaleType.Crop, ZIndex = 5, Active = false, Parent = orb,
+    }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+    local orbBtn = new("TextButton", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 6, Parent = orb })
+
+    function Window:Toggle(state)
+        if state == nil then state = not Window.Visible end
+        Window.Visible = state
+        closePanel()
+        if state then
+            main.Visible = true; orb.Visible = false
+            main.Size = UDim2.fromOffset(curW * 0.85, curH * 0.85)
+            tween(main, 0.9, { Size = UDim2.fromOffset(curW, curH) }, Enum.EasingStyle.Elastic)
+            if blur then tween(blur, 0.5, { Size = 14 + Library.GlassLevel * 14 }) end
+        else
+            if blur then tween(blur, 0.3, { Size = 0 }) end
+            tween(main, 0.25, { Size = UDim2.fromOffset(curW * 0.85, curH * 0.85) })
+            task.delay(0.22, function() if not Window.Visible then main.Visible = false; orb.Visible = true end end)
+        end
+    end
+    function Window:Maximize()
+        Window.Maximized = not Window.Maximized
+        if Window.Maximized then
+            curW, curH = screen.AbsoluteSize.X - 24, screen.AbsoluteSize.Y - 24
+            tween(main, 0.7, { Size = UDim2.fromOffset(curW, curH), Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Elastic)
+        else
+            curW, curH = w, h
+            tween(main, 0.7, { Size = UDim2.fromOffset(w, h) }, Enum.EasingStyle.Elastic)
+        end
+    end
+    function Window:Destroy()
+        closePanel()
+        for _, c in ipairs({ glowConn, glowIn1, glowIn2, sheenConn, fxConn }) do if c then c:Disconnect() end end
+        if blur then blur:Destroy() end
+        screen:Destroy()
+    end
+    minBtn.MouseButton1Click:Connect(function() Window:Toggle(false) end)
+    maxBtn.MouseButton1Click:Connect(function() Window:Maximize() end)
+    closeBtn.MouseButton1Click:Connect(function() Window:Destroy() end)
+    orbBtn.MouseButton1Click:Connect(function() Window:Toggle(true) end)
+    do
+        local drag, sp, si
+        orbBtn.InputBegan:Connect(function(i) if isPress(i) then drag, sp, si = true, orb.Position, i.Position end end)
+        UIS.InputChanged:Connect(function(i)
+            if drag and isMove(i) then
+                local d = i.Position - si
+                orb.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y)
+            end
+        end)
+        UIS.InputEnded:Connect(function(i) if isPress(i) then drag = false end end)
+    end
+
+    -- ========== Tab ==========
+    local currentIndex, lensTop, lensToken = nil, 0, 0
+    -- vòng gợn nước toả ra quanh tab vừa chọn
+    local ripple = new("Frame", {
+        Name = "Ripple", BackgroundTransparency = 1, Visible = false, Size = UDim2.new(1, 0, 0, 40), ZIndex = 2, Active = false,
+        Parent = tabsArea,
+    }, { corner(20) })
+    local rippleStroke = new("UIStroke", { Thickness = 2, Color = WHITE, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = ripple })
+
+    local function playRipple(top)
+        if not Library.Effects then return end
+        ripple.Position = UDim2.fromOffset(0, top)
+        ripple.Size = UDim2.new(1, 0, 0, 40)
+        ripple.Visible = true
+        rippleStroke.Transparency = 0.25
+        tween(ripple, 0.6, { Position = UDim2.fromOffset(-6, top - 6), Size = UDim2.new(1, 12, 0, 52) })
+        tween(rippleStroke, 0.6, { Transparency = 1 })
+    end
+
+    local function selectTab(tab)
+        closePanel()
+        local newIndex = table.find(Window.Tabs, tab) or 1
+        local first = (currentIndex == nil)
+        local dir = (currentIndex and newIndex < currentIndex) and -1 or 1
+        currentIndex = newIndex
+        for _, t in ipairs(Window.Tabs) do
+            local on = (t == tab)
+            if on and not t.Page.Visible and not first and Library.Effects then
+                -- nội dung trượt vào theo chiều đổi tab
+                t.Page.Position = UDim2.fromOffset(0, dir * 24)
+                tween(t.Page, 0.45, { Position = UDim2.new() }, Enum.EasingStyle.Quint)
+            end
+            t.Page.Visible = on
+            tween(t.Label, 0.25, { TextColor3 = on and TEXT or SUB })
+            tween(t.Bar, 0.25, { BackgroundTransparency = on and 0 or 1 })
+        end
+        lensToken = lensToken + 1
+        local token = lensToken
+        task.defer(function()
+            RunService.Heartbeat:Wait()
+            if not tab.Button.Parent or not tabsArea.Parent then return end
+            local newTop = tab.Button.AbsolutePosition.Y - tabsArea.AbsolutePosition.Y
+            if not lens.Visible then
+                lens.Position = UDim2.fromOffset(0, newTop)
+                lens.Size = UDim2.new(1, 0, 0, 40)
+                lens.Visible = true
+                lensTop = newTop
+                return
+            end
+            local oldTop = lensTop
+            lensTop = newTop
+            if oldTop == newTop then return end
+            if not Library.Effects then
+                lens.Position = UDim2.fromOffset(0, newTop)
+                lens.Size = UDim2.new(1, 0, 0, 40)
+                return
+            end
+            -- giọt nước: mép đi trước kéo dãn ra, mép sau bám theo rồi co lại
+            lens.Position = UDim2.fromOffset(0, oldTop)
+            lens.Size = UDim2.new(1, 0, 0, 40)
+            local reach = math.abs(newTop - oldTop) + 40
+            if dir > 0 then
+                tween(lens, 0.2, { Size = UDim2.new(1, 0, 0, reach) }, Enum.EasingStyle.Quad).Completed:Connect(function()
+                    if token ~= lensToken then return end
+                    playRipple(newTop)
+                    tween(lens, 0.55, { Position = UDim2.fromOffset(0, newTop), Size = UDim2.new(1, 0, 0, 40) }, Enum.EasingStyle.Back)
+                end)
+            else
+                tween(lens, 0.2, { Position = UDim2.fromOffset(0, newTop), Size = UDim2.new(1, 0, 0, reach) }, Enum.EasingStyle.Quad).Completed:Connect(function()
+                    if token ~= lensToken then return end
+                    playRipple(newTop)
+                    tween(lens, 0.55, { Size = UDim2.new(1, 0, 0, 40) }, Enum.EasingStyle.Back)
+                end)
+            end
+        end)
+    end
+
+    function Window:SelectTab(index)
+        local t = Window.Tabs[index]
+        if t then selectTab(t) end
+    end
+
+    function Window:AddTab(name, icon)
+        local Tab = {}
+        local btn = new("TextButton", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 40), Text = "", AutoButtonColor = false,
+            LayoutOrder = #Window.Tabs + 1, ZIndex = 5, Parent = sideList,
+        })
+        local bar = new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(3, 20), Position = UDim2.new(0, 4, 0.5, -10), ZIndex = 7, Parent = btn }, { corner(2) })
+        accentize(bar, "BackgroundColor3")
+        bar.BackgroundTransparency = 1
+        local label = new("TextLabel", {
+            BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Font = Enum.Font.GothamMedium, TextSize = 14, TextColor3 = SUB, ZIndex = 6, Parent = btn,
+            Text = compact and (icon or string.sub(name, 1, 1)) or ((icon and (icon .. "   ") or "") .. name),
+            TextXAlignment = compact and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left,
+        })
+        if not compact then pad(18, 0, 4, 0).Parent = label end
+
+        local page = new("ScrollingFrame", {
+            BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, BorderSizePixel = 0,
+            CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 3,
+            ScrollBarImageColor3 = WHITE, ScrollBarImageTransparency = 0.5, ZIndex = 4, Parent = pages,
+        }, { new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }), pad(2, 0, 8, 10) })
+        local order = 0
+        local function nextOrder() order = order + 1; return order end
+        new("TextLabel", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 34), LayoutOrder = nextOrder(), Font = Enum.Font.GothamBold, TextSize = 24,
+            TextColor3 = TEXT, TextXAlignment = Enum.TextXAlignment.Left, Text = name, ZIndex = 5, Parent = page,
+        })
+
+        Tab.Button, Tab.Label, Tab.Bar, Tab.Page = btn, label, bar, page
+        table.insert(Window.Tabs, Tab)
+        btn.MouseButton1Click:Connect(function() selectTab(Tab) end)
+        if #Window.Tabs == 1 then selectTab(Tab) end
+
+        -- Hàng (card) dạng viên thuốc có viền sáng, tiêu đề + mô tả
+        local function card(height, title, desc, reserve, descLines)
+            local right = (reserve or 0) + 28
+            local avail = math.max((Library.ContentWidth or 260) - right, 60)
+            local function linesFor(text, charW)
+                local n = 0
+                for part in (tostring(text) .. "\n"):gmatch("(.-)\n") do
+                    n = n + math.max(1, math.ceil(#part / math.max(math.floor(avail / charW), 6)))
+                end
+                return n
+            end
+            local tLines = math.min(linesFor(title, 8), 3)
+            local dLines = desc and (descLines or math.min(linesFor(desc, 6.4), 6)) or 0
+            local need = 18 + tLines * 18 + (desc and (4 + dLines * 15) or 0)
+            height = math.max(height, need)
+            local r = glass(page, { Size = UDim2.new(1, 0, 0, height), LayoutOrder = nextOrder(), ZIndex = 5 }, 20, 0.93, { light = true, uniform = true })
+            r:SetAttribute("SearchKey", string.lower(tostring(title) .. " " .. tostring(desc or "")))
+            new("TextLabel", {
+                BackgroundTransparency = 1, Position = UDim2.fromOffset(18, desc and 9 or 0),
+                Size = UDim2.new(1, -right, 0, desc and (tLines * 18) or math.min(height, 48)),
+                Font = Enum.Font.GothamMedium, TextSize = 14, TextColor3 = TEXT, TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = desc and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
+                TextWrapped = true, Text = tostring(title), ZIndex = 7, Parent = r,
+            })
+            if desc then
+                new("TextLabel", {
+                    BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 9 + tLines * 18 + 4), Size = UDim2.new(1, -right, 0, dLines * 15),
+                    Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = SUB, TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = tostring(desc), ZIndex = 7, Parent = r,
+                })
+            end
+            r.ClipsDescendants = true
+            new("Frame", {
+                Name = "RowGlow", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(170, 170), BackgroundColor3 = WHITE,
+                BackgroundTransparency = 1, BorderSizePixel = 0, Active = false, ZIndex = 6, Parent = r,
+            }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+            local scale = new("UIScale", { Scale = 1, Parent = r })
+            r.MouseEnter:Connect(function() tween(scale, 0.35, { Scale = 1.012 }, Enum.EasingStyle.Back) end)
+            r.MouseLeave:Connect(function() tween(scale, 0.35, { Scale = 1 }) end)
+            return r, scale
+        end
+
+        -- Lớp bấm: ép đàn hồi + gợn nước
+        local function clickable(r, scale, onClick)
+            r.ClipsDescendants = true
+            local click = new("TextButton", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Text = "", ZIndex = 9, Parent = r })
+            local rg = r:FindFirstChild("RowGlow")
+            if rg then
+                click.MouseEnter:Connect(function() tween(rg, 0.25, { BackgroundTransparency = 0.88 }) end)
+                click.MouseLeave:Connect(function() tween(rg, 0.35, { BackgroundTransparency = 1 }) end)
+                click.MouseMoved:Connect(function(x, y)
+                    local p = Vector2.new(x, y) + GuiService:GetGuiInset() - r.AbsolutePosition
+                    tween(rg, 0.18, { Position = UDim2.fromOffset(p.X, p.Y) })
+                end)
+            end
+            click.InputBegan:Connect(function(i)
+                if not isPress(i) then return end
+                tween(scale, 0.12, { Scale = 0.965 })
+                local p = screenPos(i) - r.AbsolutePosition
+                local rip = new("Frame", {
+                    AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = WHITE, BackgroundTransparency = 0.7, BorderSizePixel = 0,
+                    Active = false, ZIndex = 8, Size = UDim2.fromOffset(0, 0), Position = UDim2.fromOffset(p.X, p.Y), Parent = r,
+                }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+                tween(rip, 0.6, { Size = UDim2.fromOffset(r.AbsoluteSize.X * 1.6, r.AbsoluteSize.X * 1.6), BackgroundTransparency = 1 })
+                task.delay(0.65, function() rip:Destroy() end)
+                task.delay(0.12, function()
+                    local rip2 = new("Frame", {
+                        AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, BorderSizePixel = 0, Active = false, ZIndex = 8,
+                        Size = UDim2.fromOffset(0, 0), Position = UDim2.fromOffset(p.X, p.Y), Parent = r,
+                    }, { new("UICorner", { CornerRadius = UDim.new(1, 0) }), new("UIStroke", { Thickness = 2, Color = WHITE, Transparency = 0.4 }) })
+                    tween(rip2, 0.7, { Size = UDim2.fromOffset(r.AbsoluteSize.X * 1.3, r.AbsoluteSize.X * 1.3) })
+                    tween(rip2.UIStroke, 0.7, { Transparency = 1 })
+                    task.delay(0.75, function() rip2:Destroy() end)
+                end)
+            end)
+            click.InputEnded:Connect(function(i)
+                if isPress(i) then tween(scale, 0.6, { Scale = 1 }, Enum.EasingStyle.Elastic) end
+            end)
+            click.MouseButton1Click:Connect(onClick)
+            return click
+        end
+
+        function Tab:AddSection(text)
+            new("TextLabel", {
+                BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32), LayoutOrder = nextOrder(), Font = Enum.Font.GothamBold, TextSize = 20,
+                TextColor3 = TEXT, TextXAlignment = Enum.TextXAlignment.Left, Text = tostring(text), ZIndex = 5, Parent = page,
+            })
+        end
+
+        function Tab:AddLabel(a, desc)
+            local o = type(a) == "table" and a or { Title = a, Description = desc }
+            local r = card(o.Description and 60 or 48, o.Title, o.Description, 0, o.Lines)
+            local titleLabel, descLabel
+            for _, child in ipairs(r:GetChildren()) do
+                if child:IsA("TextLabel") then
+                    if not titleLabel then titleLabel = child elseif not descLabel then descLabel = child end
+                end
+            end
+            return {
+                Set = function(_, t) if titleLabel then titleLabel.Text = tostring(t) end end,
+                SetDesc = function(_, t) if descLabel then descLabel.Text = tostring(t) end end,
+            }
+        end
+
+        function Tab:AddButton(a, cb, desc)
+            local o = type(a) == "table" and a or { Title = a, Callback = cb, Description = desc }
+            local r, scale = card(o.Description and 60 or 48, o.Title, o.Description, 30)
+            new("TextLabel", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -18, 0.5, 0), Size = UDim2.fromOffset(20, 20), Text = "➤", Font = Enum.Font.GothamBold, TextSize = 15, TextColor3 = TEXT, ZIndex = 7, Parent = r })
+            clickable(r, scale, function() if o.Callback then task.spawn(o.Callback) end end)
+        end
+
+        function Tab:AddToggle(a, default, cb, desc)
+            local o = type(a) == "table" and a or { Title = a, Default = default, Callback = cb, Description = desc }
+            local state = o.Default and true or false
+            local r, scale = card(o.Description and 60 or 48, o.Title, o.Description, 56)
+            local track = new("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(48, 26), BackgroundTransparency = 0.85, ZIndex = 7, Parent = r }, { corner(13) })
+            accentize(track, "BackgroundColor3")
+            local ts = glassStroke(track, 1.4, 0.3, true)
+            local knob = new("Frame", { BackgroundColor3 = WHITE, Size = UDim2.fromOffset(20, 20), Position = UDim2.fromOffset(3, 3), ZIndex = 8, Parent = track }, { corner(10) })
+            glassStroke(knob, 1.2, 0.5, true)
+            local api = {}
+            local function render(anim)
+                local pos = state and UDim2.fromOffset(25, 3) or UDim2.fromOffset(3, 3)
+                local bgT = state and 0.1 or 0.85
+                if not anim then knob.Position = pos; track.BackgroundTransparency = bgT; return end
+                tween(track, 0.25, { BackgroundTransparency = bgT })
+                tween(knob, 0.14, { Size = UDim2.fromOffset(30, 20) })   -- giãn như giọt nước
+                task.delay(0.1, function() tween(knob, 0.55, { Position = pos, Size = UDim2.fromOffset(20, 20) }, Enum.EasingStyle.Elastic) end)
+            end
+            render(false)
+            function api:Set(v, silent) state = v and true or false; render(true); if o.Callback and not silent then task.spawn(o.Callback, state) end end
+            function api:Get() return state end
+            clickable(r, scale, function() api:Set(not state) end)
+            return api
+        end
+
+        function Tab:AddSlider(a, min, max, default, cb, desc)
+            local o = type(a) == "table" and a or { Title = a, Min = min, Max = max, Default = default, Callback = cb, Description = desc }
+            local lo, hi = o.Min or 0, o.Max or 100
+            local value = math.clamp(o.Default or lo, lo, hi)
+            local height = o.Description and 76 or 64
+            local r = card(height, o.Title, o.Description, 70)
+            if o.Description then r.Size = UDim2.new(1, 0, 0, r.Size.Y.Offset + 16) end
+            height = r.Size.Y.Offset
+            local mult = 10 ^ (o.Rounding or 0)
+            local val = new("TextLabel", {
+                BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 8), Size = UDim2.fromOffset(70, 22),
+                Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 7, Parent = r,
+            })
+            accentize(val, "TextColor3")
+            local bar = new("Frame", { BackgroundColor3 = WHITE, BackgroundTransparency = 0.75, Position = UDim2.new(0, 18, 0, height - 20), Size = UDim2.new(1, -36, 0, 6), ZIndex = 7, Parent = r }, { corner(3) })
+            local fill = new("Frame", { Size = UDim2.fromScale(0, 1), ZIndex = 8, Parent = bar }, { corner(3) })
+            accentize(fill, "BackgroundColor3")
+            local knob = new("Frame", { BackgroundColor3 = WHITE, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(16, 16), Position = UDim2.fromScale(0, 0.5), ZIndex = 9, Parent = bar }, { corner(13) })
+            glassStroke(knob, 1.5, 0.2, true)
+            local api = {}
+            local function set(v, silent)
+                v = math.clamp(math.floor(v * mult + 0.5) / mult, lo, hi)
+                value = v
+                local a2 = (v - lo) / math.max(hi - lo, 1)
+                fill.Size = UDim2.fromScale(a2, 1)
+                knob.Position = UDim2.fromScale(a2, 0.5)
+                val.Text = tostring(v)
+                if o.Callback and not silent then task.spawn(o.Callback, v) end
+            end
+            set(value, true)
+            function api:Set(v, silent) set(v, silent) end
+            function api:Get() return value end
+            local dragging = false
+            local function fromX(x) set(lo + math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1) * (hi - lo)) end
+            bar.InputBegan:Connect(function(i)
+                if isPress(i) then
+                    dragging = true; page.ScrollingEnabled = false; fromX(i.Position.X)
+                    tween(knob, 0.35, { Size = UDim2.fromOffset(28, 22) }, Enum.EasingStyle.Back)
+                end
+            end)
+            UIS.InputChanged:Connect(function(i) if dragging and isMove(i) then fromX(i.Position.X) end end)
+            UIS.InputEnded:Connect(function(i)
+                if isPress(i) and dragging then
+                    dragging = false; page.ScrollingEnabled = true
+                    tween(knob, 0.6, { Size = UDim2.fromOffset(16, 16) }, Enum.EasingStyle.Elastic)
+                end
+            end)
+            return api
+        end
+
+        function Tab:AddDropdown(a, options, default, cb, desc)
+            local o = type(a) == "table" and a or { Title = a, Options = options, Default = default, Callback = cb, Description = desc }
+            local opts = o.Options or {}
+            local selected = o.Default
+            local r, scale = card(o.Description and 60 or 48, o.Title, o.Description, 190)
+            local pill = glass(r, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0), Size = UDim2.fromOffset(176, 32), ZIndex = 7 }, 16, 0.9, { light = true, uniform = true })
+            local cur = new("TextLabel", {
+                BackgroundTransparency = 1, Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -40, 1, 0), Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = TEXT,
+                TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Text = tostring(selected or "Chọn..."), ZIndex = 8, Parent = pill,
+            })
+            new("TextLabel", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 0), Size = UDim2.fromOffset(16, 32), Text = "›", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = TEXT, ZIndex = 8, Parent = pill })
+            local api = {}
+            function api:Set(v, silent) selected = v; cur.Text = tostring(v ~= nil and v or "Chọn..."); if o.Callback and not silent then task.spawn(o.Callback, v) end end
+            function api:Get() return selected end
+            function api:SetOptions(list) opts = list end
+            clickable(r, scale, function()
+                openPanel(screen, pill, opts, selected, function(v) api:Set(v) end)
+            end)
+            return api
+        end
+
+        function Tab:AddInput(a, placeholder, cb, desc)
+            local o = type(a) == "table" and a or { Title = a, Placeholder = placeholder, Callback = cb, Description = desc }
+            local r = card(o.Description and 60 or 48, o.Title, o.Description, 200)
+            local pill = glass(r, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0), Size = UDim2.fromOffset(186, 32), ZIndex = 7 }, 16, 0.9, { light = true, uniform = true })
+            local box = new("TextBox", {
+                BackgroundTransparency = 1, Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), ClearTextOnFocus = false, Text = "",
+                PlaceholderText = o.Placeholder or "", PlaceholderColor3 = SUB, Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = TEXT,
+                TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, Parent = pill,
+            })
+            local st = pill:FindFirstChildOfClass("UIStroke")
+            box.Focused:Connect(function() tween(st, 0.2, { Transparency = 0, Thickness = 2 }) end)
+            box.FocusLost:Connect(function(enter)
+                tween(st, 0.2, { Transparency = 0.45, Thickness = 1.3 })
+                if o.Callback then task.spawn(o.Callback, box.Text, enter) end
+            end)
+            return { Set = function(_, t) box.Text = tostring(t) end, Get = function() return box.Text end }
+        end
+
+        return Tab
+    end
+
+    table.insert(Library.Windows, Window)
+    return Window
+end
+
+return Library
+
+end
+
+-- Cầu nối: giao diện FluentGlass Liquid (của bạn) -> API kiểu Fluent mà script dùng
+local function RaitoCreateGlassLib()
+	local Library = RaitoLoadUserGlass()
+	local Adapter = { Options = {}, Windows = {}, Unloaded = false }
+
+	local ICONS = { dices = "🎲", swords = "⚔", home = "⌂", settings = "⚙" }
+
+	local function safeCall(fn, ...)
+		if type(fn) ~= "function" then
+			return
+		end
+		local ok, err = pcall(fn, ...)
+		if not ok then
+			warn("[Raito UI] " .. tostring(err))
+		end
+	end
+
+	local function normalizeImage(image)
+		if type(image) == "number" or (type(image) == "string" and image:match("^%d+$")) then
+			return "rbxassetid://" .. tostring(image)
+		end
+		if type(image) == "string" and image ~= "" then
+			return image
+		end
+		return nil
+	end
+
+	local function register(id, object)
+		if id ~= nil then
+			Adapter.Options[id] = object
+		end
+		object.Id = id
+		object.Changed = {}
+		function object:OnChanged(callback)
+			self.Changed[#self.Changed + 1] = callback
+		end
+		return object
+	end
+
+	local function fireChanged(object, value)
+		for _, callback in ipairs(object.Changed) do
+			safeCall(callback, value)
+		end
+	end
+
+	function Adapter:Notify(config)
+		config = config or {}
+		if Adapter.Unloaded then
+			return
+		end
+		pcall(function()
+			Library:Notify(tostring(config.Title or ""), tostring(config.Content or ""), tonumber(config.Duration) or 4)
+		end)
+	end
+
+	function Adapter:Destroy()
+		Adapter.Unloaded = true
+		for _, window in ipairs(Adapter.Windows) do
+			pcall(function()
+				window:Destroy()
+			end)
+		end
+		Adapter.Windows = {}
+		pcall(function()
+			local holders = {}
+			if type(gethui) == "function" then
+				holders[#holders + 1] = gethui()
+			end
+			holders[#holders + 1] = game:GetService("CoreGui")
+			for _, holder in ipairs(holders) do
+				local gui = holder:FindFirstChild("FluentGlassNotify")
+				if gui then
+					gui:Destroy()
+				end
+			end
+		end)
+	end
+
+	local function wrapTab(rawTab)
+		local Tab = {}
+
+		function Tab:AddSection(name)
+			rawTab:AddSection(tostring(name or ""))
+			return {}
+		end
+
+		function Tab:AddParagraph(config)
+			config = config or {}
+			local content = config.Content
+			if content ~= nil then
+				content = tostring(content)
+			end
+			local label = rawTab:AddLabel({
+				Title = tostring(config.Title or ""),
+				Description = content,
+				Lines = config.Lines,
+			})
+			local object = {}
+			function object:SetTitle(text)
+				label:Set(text)
+			end
+			function object:SetDesc(text)
+				label:SetDesc(text)
+			end
+			object.SetValue = object.SetDesc
+			return object
+		end
+
+		function Tab:AddButton(config)
+			config = config or {}
+			local description = config.Description
+			if description == "" then
+				description = nil
+			end
+			rawTab:AddButton({
+				Title = tostring(config.Title or ""),
+				Description = description,
+				Callback = config.Callback,
+			})
+			return {}
+		end
+
+		function Tab:AddToggle(id, config)
+			config = config or {}
+			local object = register(id, { Type = "Toggle", Value = config.Default == true })
+			local description = config.Description
+			if description == "" then
+				description = nil
+			end
+			local raw = rawTab:AddToggle({
+				Title = tostring(config.Title or ""),
+				Description = description,
+				Default = object.Value,
+				Callback = function(value)
+					object.Value = value == true
+					safeCall(config.Callback, object.Value)
+					fireChanged(object, object.Value)
+				end,
+			})
+			function object:SetValue(value, silent)
+				value = value == true
+				if object.Value == value then
+					return
+				end
+				object.Value = value
+				raw:Set(value, true)
+				if not silent then
+					safeCall(config.Callback, value)
+					fireChanged(object, value)
+				end
+			end
+			return object
+		end
+
+		function Tab:AddSlider(id, config)
+			config = config or {}
+			local min = tonumber(config.Min) or 0
+			local max = tonumber(config.Max) or 100
+			if max <= min then
+				max = min + 1
+			end
+			local rounding = tonumber(config.Rounding) or 0
+			local mult = 10 ^ rounding
+			local function fit(value)
+				value = tonumber(value) or min
+				return math.clamp(math.floor(value * mult + 0.5) / mult, min, max)
+			end
+			local object = register(id, { Type = "Slider", Value = fit(config.Default or min) })
+			local description = config.Description
+			if description == "" then
+				description = nil
+			end
+			local raw = rawTab:AddSlider({
+				Title = tostring(config.Title or ""),
+				Description = description,
+				Min = min,
+				Max = max,
+				Default = object.Value,
+				Rounding = rounding,
+				Callback = function(value)
+					object.Value = fit(value)
+					safeCall(config.Callback, object.Value)
+					fireChanged(object, object.Value)
+				end,
+			})
+			function object:SetValue(value, silent)
+				value = fit(value)
+				if value == object.Value then
+					return
+				end
+				object.Value = value
+				raw:Set(value, true)
+				if not silent then
+					safeCall(config.Callback, value)
+					fireChanged(object, value)
+				end
+			end
+			return object
+		end
+
+		function Tab:AddDropdown(id, config)
+			config = config or {}
+			local values = config.Values or {}
+			local default = config.Default
+			if type(default) == "number" then
+				default = values[default]
+			end
+			local object = register(id, { Type = "Dropdown", Values = values, Value = default })
+			local description = config.Description
+			if description == "" then
+				description = nil
+			end
+			local raw = rawTab:AddDropdown({
+				Title = tostring(config.Title or ""),
+				Description = description,
+				Options = values,
+				Default = default,
+				Callback = function(value)
+					object.Value = value
+					safeCall(config.Callback, value)
+					fireChanged(object, value)
+				end,
+			})
+			function object:SetValues(list)
+				object.Values = list or {}
+				raw:SetOptions(object.Values)
+				if object.Value ~= nil and not table.find(object.Values, object.Value) then
+					object.Value = nil
+					raw:Set(nil, true)
+				end
+			end
+			function object:SetValue(value, silent)
+				if type(value) == "number" then
+					value = object.Values[value]
+				end
+				object.Value = value
+				raw:Set(value, true)
+				if not silent then
+					safeCall(config.Callback, value)
+					fireChanged(object, value)
+				end
+			end
+			return object
+		end
+
+		function Tab:AddInput(id, config)
+			config = config or {}
+			local object = register(id, { Type = "Input", Value = tostring(config.Default or "") })
+			local description = config.Description
+			if description == "" then
+				description = nil
+			end
+			local raw = rawTab:AddInput({
+				Title = tostring(config.Title or ""),
+				Description = description,
+				Placeholder = config.Placeholder,
+				Callback = function(text)
+					object.Value = tostring(text or "")
+					safeCall(config.Callback, object.Value)
+					fireChanged(object, object.Value)
+				end,
+			})
+			if object.Value ~= "" then
+				raw:Set(object.Value)
+			end
+			function object:SetValue(value, silent)
+				value = tostring(value or "")
+				object.Value = value
+				raw:Set(value)
+				if not silent then
+					safeCall(config.Callback, value)
+					fireChanged(object, value)
+				end
+			end
+			return object
+		end
+
+		return Tab
+	end
+
+	function Adapter:CreateWindow(config)
+		config = config or {}
+		local size = config.Size
+		local raw = Library:CreateWindow({
+			Title = config.Title,
+			SubTitle = config.SubTitle,
+			Theme = config.GlassTheme or "Obsidian White",
+			Width = size and size.X.Offset or nil,
+			Height = size and size.Y.Offset or nil,
+			OrbImage = normalizeImage(config.Image),
+		})
+		Adapter.Windows[#Adapter.Windows + 1] = raw
+
+		local Window = { Raw = raw, Root = raw.Main }
+
+		function Window:AddTab(tabConfig)
+			tabConfig = tabConfig or {}
+			local icon = ICONS[tabConfig.Icon] or tabConfig.Emoji
+			return wrapTab(raw:AddTab(tostring(tabConfig.Title or "Tab"), icon))
+		end
+
+		function Window:SelectTab(index)
+			raw:SelectTab(index)
+		end
+
+		function Window:Minimize()
+			raw:Toggle()
+		end
+
+		function Window:Destroy()
+			raw:Destroy()
+		end
+
+		return Window
+	end
+
+	return Adapter
+end
+
+-- Raito Hub : Cameraman Tower Defense
+-- UI: Fluent liquid glass (đã nhúng sẵn). Muốn dùng bản liquid glass khác: đặt getgenv().RaitoFluentURL = "link" trước khi chạy.
+
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+local env = (getgenv and getgenv()) or _G
+if type(env.RaitoCameraTDShutdown) == "function" then
+	pcall(env.RaitoCameraTDShutdown)
+end
+
+---------------------------------------------------------------------
+-- Tải UI
+---------------------------------------------------------------------
+local Fluent
+if type(env.RaitoFluentURL) == "string" and env.RaitoFluentURL ~= "" then
+	local ok, lib = pcall(function()
+		return loadstring(game:HttpGet(env.RaitoFluentURL))()
+	end)
+	if ok and type(lib) == "table" then
+		Fluent = lib
+	end
+end
+local usingCustomUi = Fluent ~= nil
+if not Fluent then
+	Fluent = RaitoCreateGlassLib()
+end
+local Options = Fluent.Options
+
+---------------------------------------------------------------------
+-- Cấu hình / trạng thái
+---------------------------------------------------------------------
+local FOLDER = "RaitoHub/CameraTD"
+local MACRO_DIR = FOLDER .. "/Macros"
+
+-- Từ khóa remote bị bỏ qua khi ghi (remote kiểu ping, camera, chuột...)
+local NOISE_WORDS = {
+	"ping", "heartbeat", "camera", "mouse", "cursor", "sync", "anticheat", "analytics",
+	"fps", "footstep", "animation", "chat", "jump", "walk", "rotate", "look", "log",
+}
+
+local REPLAY_WORDS = { "replay", "retry", "play again", "chơi lại", "choi lai" }
+local PLAY_WORDS = { "play", "start", "ready", "join", "play now", "start game", "join game", "start match", "bắt đầu", "bat dau" }
+local MONEY_STOP_WORDS = { "not enough", "insufficient", "can't afford", "cannot afford", "không đủ", "khong du", "need more" }
+
+local State = {
+	Running = true,
+	Queue = {},
+	Recording = false,
+	RecordStart = 0,
+	RecordedActions = {},
+	LearnTarget = nil,
+	Learned = {},
+	Macros = {},
+	LoadedMacro = nil,
+	Playing = false,
+	PlayToken = 0,
+	MacroDone = false,
+	NextPlayAt = 0,
+	ReplayCooldownUntil = 0,
+	Maps = {},
+	HookOk = false,
+	LastRecordedLabel = "chưa có",
+}
+
+local Connections = {}
+
+local function track(connection)
+	Connections[#Connections + 1] = connection
+	return connection
+end
+
+local function notify(title, content, duration)
+	pcall(function()
+		Fluent:Notify({ Title = title, Content = content, Duration = duration or 4 })
+	end)
+end
+
+---------------------------------------------------------------------
+-- Lưu / đọc file (có dự phòng bộ nhớ nếu executor không hỗ trợ)
+---------------------------------------------------------------------
+local memoryFiles = {}
+
+local function canFiles()
+	return type(writefile) == "function" and type(readfile) == "function"
+end
+
+local function ensureFolders()
+	if type(makefolder) ~= "function" or type(isfolder) ~= "function" then
+		return
+	end
+	for _, path in ipairs({ "RaitoHub", FOLDER, MACRO_DIR }) do
+		pcall(function()
+			if not isfolder(path) then
+				makefolder(path)
+			end
+		end)
+	end
+end
+
+local function saveJson(path, data)
+	local ok, text = pcall(function()
+		return HttpService:JSONEncode(data)
+	end)
+	if not ok then
+		return false
+	end
+	memoryFiles[path] = text
+	if canFiles() then
+		ensureFolders()
+		return pcall(writefile, path, text)
+	end
+	return true
+end
+
+local function loadJson(path)
+	local text = memoryFiles[path]
+	if canFiles() then
+		local okExists, exists = pcall(function()
+			return type(isfile) ~= "function" or isfile(path)
+		end)
+		if okExists and exists then
+			local okRead, content = pcall(readfile, path)
+			if okRead and type(content) == "string" then
+				text = content
+			end
+		end
+	end
+	if not text then
+		return nil
+	end
+	local ok, data = pcall(function()
+		return HttpService:JSONDecode(text)
+	end)
+	return ok and data or nil
+end
+
+---------------------------------------------------------------------
+-- Chuyển giá trị <-> JSON (để lưu đối số remote)
+---------------------------------------------------------------------
+local function instancePath(inst)
+	local names = {}
+	local current = inst
+	while current and current ~= game do
+		table.insert(names, 1, current.Name)
+		current = current.Parent
+	end
+	return names
+end
+
+local function resolvePath(names)
+	if type(names) ~= "table" or #names == 0 then
+		return nil
+	end
+	local current = game
+	for index, name in ipairs(names) do
+		local nextObject
+		if index == 1 then
+			local ok, service = pcall(function()
+				return game:GetService(name)
+			end)
+			nextObject = ok and service or game:FindFirstChild(name)
+		else
+			nextObject = current:FindFirstChild(name)
+		end
+		if not nextObject then
+			return nil
+		end
+		current = nextObject
+	end
+	return current
+end
+
+local function toHex(text)
+	return (text:gsub(".", function(c)
+		return string.format("%02x", string.byte(c))
+	end))
+end
+
+local function fromHex(hex)
+	return (hex:gsub("%x%x", function(h)
+		return string.char(tonumber(h, 16))
+	end))
+end
+
+local function serialize(value, depth)
+	depth = depth or 0
+	local kind = typeof(value)
+	if depth > 6 then
+		return { t = "nil" }
+	end
+	if value == nil then
+		return { t = "nil" }
+	elseif kind == "number" then
+		if value ~= value then
+			return { t = "num", v = "nan" }
+		elseif value == math.huge then
+			return { t = "num", v = "inf" }
+		elseif value == -math.huge then
+			return { t = "num", v = "-inf" }
+		end
+		return { t = "n", v = value }
+	elseif kind == "string" then
+		if utf8.len(value) == nil or string.find(value, "%c") then
+			return { t = "hs", v = toHex(value) }
+		end
+		return { t = "s", v = value }
+	elseif kind == "boolean" then
+		return { t = "b", v = value }
+	elseif kind == "buffer" and type(buffer) == "table" then
+		return { t = "buf", v = toHex(buffer.tostring(value)) }
+	elseif kind == "Vector3" then
+		return { t = "v3", v = { value.X, value.Y, value.Z } }
+	elseif kind == "Vector2" then
+		return { t = "v2", v = { value.X, value.Y } }
+	elseif kind == "CFrame" then
+		return { t = "cf", v = { value:GetComponents() } }
+	elseif kind == "Color3" then
+		return { t = "c3", v = { value.R, value.G, value.B } }
+	elseif kind == "Instance" then
+		return { t = "i", v = instancePath(value) }
+	elseif kind == "table" then
+		local entries = {}
+		for key, item in pairs(value) do
+			entries[#entries + 1] = { k = serialize(key, depth + 1), v = serialize(item, depth + 1) }
+		end
+		return { t = "t", v = entries }
+	end
+	State.SerializeWarning = kind
+	return { t = "nil" }
+end
+
+local function deserialize(node)
+	if type(node) ~= "table" then
+		return nil
+	end
+	local tag, v = node.t, node.v
+	if tag == "n" or tag == "s" or tag == "b" then
+		return v
+	elseif tag == "hs" then
+		return fromHex(v)
+	elseif tag == "buf" then
+		if type(buffer) == "table" then
+			return buffer.fromstring(fromHex(v))
+		end
+		return nil
+	elseif tag == "num" then
+		if v == "inf" then
+			return math.huge
+		elseif v == "-inf" then
+			return -math.huge
+		end
+		return 0 / 0
+	elseif tag == "v3" then
+		return Vector3.new(v[1], v[2], v[3])
+	elseif tag == "v2" then
+		return Vector2.new(v[1], v[2])
+	elseif tag == "cf" then
+		return CFrame.new(table.unpack(v))
+	elseif tag == "c3" then
+		return Color3.new(v[1], v[2], v[3])
+	elseif tag == "i" then
+		return resolvePath(v)
+	elseif tag == "t" then
+		local result = {}
+		for _, entry in ipairs(v) do
+			local key = deserialize(entry.k)
+			if key ~= nil then
+				result[key] = deserialize(entry.v)
+			end
+		end
+		return result
+	end
+	return nil
+end
+
+local function serializeArgs(packed)
+	local list = {}
+	for index = 1, packed.n do
+		list[index] = serialize(packed[index])
+	end
+	return { n = packed.n, list = list }
+end
+
+local function deserializeArgs(stored)
+	local args = { n = stored.n or #stored.list }
+	for index = 1, args.n do
+		args[index] = deserialize(stored.list[index])
+	end
+	return args
+end
+
+local function describeArgs(packed)
+	local parts = {}
+	for index = 1, math.min(packed.n, 3) do
+		local value = packed[index]
+		local kind = typeof(value)
+		if kind == "string" or kind == "number" or kind == "boolean" then
+			parts[#parts + 1] = tostring(value)
+		else
+			parts[#parts + 1] = kind
+		end
+	end
+	return table.concat(parts, ", ")
+end
+
+---------------------------------------------------------------------
+-- Hook remote để ghi lại lệnh người chơi thật sự gọi
+---------------------------------------------------------------------
+local function isNoise(name)
+	local lowered = string.lower(name)
+	for _, word in ipairs(NOISE_WORDS) do
+		if string.find(lowered, word, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local REMOTE_CLASSES = {
+	RemoteEvent = true,
+	RemoteFunction = true,
+	UnreliableRemoteEvent = true,
+}
+
+local function installHook()
+	if State.HookOk then
+		return true
+	end
+	if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
+		return false
+	end
+	local oldNamecall
+	local function handler(self, ...)
+		local method = getnamecallmethod()
+		if (method == "FireServer" or method == "InvokeServer")
+			and not (type(checkcaller) == "function" and checkcaller())
+			and (State.Recording or State.LearnTarget) then
+			local classOk = false
+			pcall(function()
+				classOk = REMOTE_CLASSES[self.ClassName] == true
+			end)
+			if classOk then
+				-- chỉ đẩy vào hàng đợi, xử lý sau để không làm hỏng namecall
+				State.Queue[#State.Queue + 1] = {
+					remote = self,
+					method = method,
+					args = table.pack(...),
+					time = os.clock(),
+				}
+			end
+		end
+		return oldNamecall(self, ...)
+	end
+	if type(newcclosure) == "function" then
+		handler = newcclosure(handler)
+	end
+	local ok = pcall(function()
+		oldNamecall = hookmetamethod(game, "__namecall", handler)
+	end)
+	State.HookOk = ok and oldNamecall ~= nil
+	return State.HookOk
+end
+
+---------------------------------------------------------------------
+-- Học lệnh Roll + ghi macro (xử lý hàng đợi)
+---------------------------------------------------------------------
+local rollParagraph, recordParagraph
+
+local function rollStatusText()
+	local function status(key)
+		return State.Learned[key] and "đã học" or "chưa học"
+	end
+	return "Roll 1: " .. status("roll1") .. " | Roll 10: " .. status("roll10")
+end
+
+local function refreshRollParagraph()
+	if rollParagraph then
+		rollParagraph:SetDesc(rollStatusText())
+	end
+end
+
+local function refreshRecordParagraph()
+	if recordParagraph then
+		local text = "Đã ghi " .. tostring(#State.RecordedActions) .. " lệnh"
+		if State.Recording then
+			text = "ĐANG GHI... " .. text
+		end
+		recordParagraph:SetDesc(text .. " | Lệnh gần nhất: " .. State.LastRecordedLabel)
+	end
+end
+
+local function processQueue()
+	if #State.Queue == 0 then
+		return
+	end
+	local queue = State.Queue
+	State.Queue = {}
+	for _, entry in ipairs(queue) do
+		local okName, name = pcall(function()
+			return entry.remote.Name
+		end)
+		name = okName and name or "?"
+		if not isNoise(name) then
+			if State.LearnTarget then
+				local key = State.LearnTarget
+				State.LearnTarget = nil
+				State.Learned[key] = {
+					name = name,
+					method = entry.method,
+					path = instancePath(entry.remote),
+					args = serializeArgs(entry.args),
+				}
+				saveJson(FOLDER .. "/learned.json", State.Learned)
+				refreshRollParagraph()
+				notify("Đã học lệnh", (key == "roll1" and "Roll 1" or "Roll 10") .. " = " .. name .. "(" .. describeArgs(entry.args) .. ")", 5)
+			elseif State.Recording then
+				State.SerializeWarning = nil
+				State.RecordedActions[#State.RecordedActions + 1] = {
+					t = entry.time - State.RecordStart,
+					name = name,
+					method = entry.method,
+					path = instancePath(entry.remote),
+					args = serializeArgs(entry.args),
+				}
+				State.LastRecordedLabel = name .. "(" .. describeArgs(entry.args) .. ")"
+				if State.SerializeWarning then
+					State.LastRecordedLabel = State.LastRecordedLabel .. " [cảnh báo: có đối số kiểu " .. tostring(State.SerializeWarning) .. " không lưu được]"
+				end
+				refreshRecordParagraph()
+			end
+		end
+	end
+end
+
+task.spawn(function()
+	while State.Running do
+		pcall(processQueue)
+		task.wait(0.05)
+	end
+end)
+
+---------------------------------------------------------------------
+-- Gọi lại remote đã lưu
+---------------------------------------------------------------------
+-- trả về: ok, kết quả
+local function fireStored(stored)
+	local remote = resolvePath(stored.path)
+	if not remote then
+		return false, "không tìm thấy remote"
+	end
+	local args = deserializeArgs(stored.args)
+	local method = stored.method
+	local ok, result = pcall(function()
+		if method == "InvokeServer" then
+			return remote:InvokeServer(table.unpack(args, 1, args.n))
+		end
+		remote:FireServer(table.unpack(args, 1, args.n))
+		return true
+	end)
+	return ok, result
+end
+
+---------------------------------------------------------------------
+-- Tìm & bấm nút trên giao diện game
+---------------------------------------------------------------------
+local function playerGui()
+	return LocalPlayer:FindFirstChild("PlayerGui")
+end
+
+local function isGuiVisible(object)
+	local current = object
+	while current and current ~= game do
+		if current:IsA("GuiObject") and not current.Visible then
+			return false
+		end
+		if current:IsA("ScreenGui") and not current.Enabled then
+			return false
+		end
+		current = current.Parent
+	end
+	return true
+end
+
+local function buttonText(button)
+	if button:IsA("TextButton") and button.Text ~= "" then
+		return button.Text
+	end
+	for _, child in ipairs(button:GetDescendants()) do
+		if child:IsA("TextLabel") and child.Text ~= "" then
+			return child.Text
+		end
+	end
+	return ""
+end
+
+local function cleanText(text)
+	text = string.lower(tostring(text or ""))
+	text = text:gsub("<[^>]+>", "")
+	text = text:gsub("^%s+", ""):gsub("%s+$", "")
+	return text
+end
+
+local function findButton(words, exact)
+	local gui = playerGui()
+	if not gui then
+		return nil
+	end
+	for _, object in ipairs(gui:GetDescendants()) do
+		if (object:IsA("TextButton") or object:IsA("ImageButton")) and isGuiVisible(object) then
+			local text = cleanText(buttonText(object))
+			if text ~= "" then
+				for _, word in ipairs(words) do
+					local target = cleanText(word)
+					if (exact and text == target) or (not exact and string.find(text, target, 1, true)) then
+						return object
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function clickButton(button)
+	if not button then
+		return false
+	end
+	local fired = false
+	if type(getconnections) == "function" then
+		for _, signalName in ipairs({ "Activated", "MouseButton1Click", "MouseButton1Down", "MouseButton1Up" }) do
+			pcall(function()
+				for _, connection in ipairs(getconnections(button[signalName])) do
+					connection:Fire()
+					fired = true
+				end
+			end)
+		end
+	end
+	if not fired then
+		pcall(function()
+			local vim = game:GetService("VirtualInputManager")
+			local inset = GuiService:GetGuiInset()
+			local x = button.AbsolutePosition.X + button.AbsoluteSize.X / 2
+			local y = button.AbsolutePosition.Y + button.AbsoluteSize.Y / 2 + inset.Y
+			vim:SendMouseButtonEvent(x, y, 0, true, game, 0)
+			task.wait(0.05)
+			vim:SendMouseButtonEvent(x, y, 0, false, game, 0)
+			fired = true
+		end)
+	end
+	return fired
+end
+
+local function hasMoneyWarning()
+	local gui = playerGui()
+	if not gui then
+		return false
+	end
+	for _, object in ipairs(gui:GetDescendants()) do
+		if object:IsA("TextLabel") and object.Text ~= "" and isGuiVisible(object) then
+			local text = cleanText(object.Text)
+			for _, word in ipairs(MONEY_STOP_WORDS) do
+				if string.find(text, word, 1, true) then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+---------------------------------------------------------------------
+-- Cửa sổ
+---------------------------------------------------------------------
+local Window = Fluent:CreateWindow({
+	Title = "Raito Hub",
+	SubTitle = "Cameraman Tower Defense",
+	Image = "rbxassetid://88620553905198",
+	TabWidth = 150,
+	Size = UDim2.fromOffset(600, 470),
+	Acrylic = true,
+	Theme = "Dark",
+	MinimizeKey = Enum.KeyCode.RightControl,
+})
+
+local Tabs = {
+	Roll = Window:AddTab({ Title = "Roll", Icon = "dices" }),
+	Main = Window:AddTab({ Title = "Main", Icon = "swords" }),
+}
+
+---------------------------------------------------------------------
+-- TAB ROLL
+---------------------------------------------------------------------
+Tabs.Roll:AddSection("Chọn loại roll")
+
+Tabs.Roll:AddDropdown("RollChoice", {
+	Title = "Chọn roll",
+	Values = { "Roll 1", "Roll 10" },
+	Multi = false,
+	Default = 1,
+})
+
+rollParagraph = Tabs.Roll:AddParagraph({
+	Title = "Lệnh roll đã học",
+	Content = "",
+	Lines = 2,
+})
+
+Tabs.Roll:AddButton({
+	Title = "Học lệnh cho lựa chọn hiện tại",
+	Description = "Bấm nút này, rồi tự bấm roll thật 1 lần trong game để script ghi lại lệnh roll",
+	Callback = function()
+		if not installHook() then
+			notify("Không hỗ trợ", "Executor của bạn không có hookmetamethod nên không học lệnh được", 6)
+			return
+		end
+		local key = Options.RollChoice.Value == "Roll 10" and "roll10" or "roll1"
+		State.LearnTarget = key
+		notify("Đang chờ", "Bây giờ hãy bấm " .. (key == "roll10" and "Roll 10" or "Roll 1") .. " trong game", 6)
+	end,
+})
+
+Tabs.Roll:AddSection("Bắt đầu roll")
+
+Tabs.Roll:AddSlider("RollDelay", {
+	Title = "Chờ giữa mỗi lần roll (giây)",
+	Default = 0.4,
+	Min = 0.1,
+	Max = 3,
+	Rounding = 1,
+})
+
+Tabs.Roll:AddSlider("RollLimit", {
+	Title = "Giới hạn số lần roll (0 = roll đến hết tiền)",
+	Default = 0,
+	Min = 0,
+	Max = 500,
+	Rounding = 0,
+})
+
+local rollStatus = Tabs.Roll:AddParagraph({
+	Title = "Trạng thái",
+	Content = "Chưa chạy",
+	Lines = 3,
+})
+
+-- tìm các giá trị tiền của người chơi để biết khi nào hết tiền
+local function findMoneyValues()
+	local list, seen = {}, {}
+	for _, object in ipairs(LocalPlayer:GetDescendants()) do
+		if (object:IsA("NumberValue") or object:IsA("IntValue")) and not seen[object] then
+			local name = string.lower(object.Name)
+			if string.find(name, "coin", 1, true) or string.find(name, "cash", 1, true)
+				or string.find(name, "gem", 1, true) or string.find(name, "money", 1, true)
+				or string.find(name, "gold", 1, true) then
+				seen[object] = true
+				list[#list + 1] = object
+			end
+		end
+	end
+	return list
+end
+
+local NO_MONEY_ROLL_CAP = 100
+
+local rolling = false
+
+local function rollLoop()
+	if rolling then
+		return
+	end
+	rolling = true
+	local key = Options.RollChoice.Value == "Roll 10" and "roll10" or "roll1"
+	local stored = State.Learned[key]
+	if not stored then
+		rollStatus:SetDesc("Chưa học lệnh " .. (key == "roll10" and "Roll 10" or "Roll 1") .. ". Bấm \"Học lệnh\" trước.")
+		notify("Chưa học lệnh", "Hãy học lệnh roll trước khi bấm Start Roll", 5)
+		rolling = false
+		if Options.StartRoll then
+			Options.StartRoll:SetValue(false, true)
+		end
+		return
+	end
+
+	local candidates = findMoneyValues()
+	local count, fails, unchanged = 0, 0, 0
+	local spentEver = false
+	local reason = "đã dừng"
+	local hardCap = 0
+	if #candidates == 0 then
+		hardCap = NO_MONEY_ROLL_CAP
+		notify("Không thấy tiền", "Không dò được số tiền của bạn nên script tự giới hạn " .. tostring(hardCap) .. " lần roll", 5)
+	end
+
+	while State.Running and Options.StartRoll and Options.StartRoll.Value do
+		local before = {}
+		for index, value in ipairs(candidates) do
+			before[index] = value.Value
+		end
+		local ok, result = fireStored(stored)
+		count = count + 1
+
+		if not ok or result == false or result == nil and stored.method == "InvokeServer" then
+			fails = fails + 1
+		else
+			fails = 0
+		end
+
+		task.wait(math.max(tonumber(Options.RollDelay.Value) or 0.4, 0.05) + 0.25)
+
+		local spent = false
+		local moneyText = ""
+		for index, value in ipairs(candidates) do
+			if value.Value < before[index] then
+				spent = true
+			end
+			moneyText = moneyText .. (index > 1 and ", " or "") .. value.Name .. " " .. tostring(value.Value)
+		end
+		if #candidates > 0 then
+			if spent then
+				spentEver = true
+				unchanged = 0
+			else
+				unchanged = unchanged + 1
+			end
+		end
+
+		rollStatus:SetDesc("Đã roll " .. tostring(count) .. " lần" .. (moneyText ~= "" and (" | " .. moneyText) or ""))
+
+		local limit = tonumber(Options.RollLimit.Value) or 0
+		if hardCap > 0 and (limit == 0 or limit > hardCap) then
+			limit = hardCap
+		end
+		if limit > 0 and count >= limit then
+			reason = "đạt giới hạn " .. tostring(limit) .. " lần"
+			break
+		end
+		if fails >= 3 then
+			reason = "server từ chối 3 lần liên tiếp (hết tiền?)"
+			break
+		end
+		if spentEver and unchanged >= 4 then
+			reason = "tiền không giảm sau 4 lần roll (hết tiền)"
+			break
+		end
+		if #candidates > 0 and not spentEver and count >= 10 and stored.method ~= "InvokeServer" then
+			reason = "10 lần roll mà tiền không giảm: có thể học nhầm lệnh, hãy học lại"
+			break
+		end
+		if count % 3 == 0 and hasMoneyWarning() then
+			reason = "game báo không đủ tiền"
+			break
+		end
+	end
+
+	rollStatus:SetDesc("Dừng: " .. reason .. " | Đã roll " .. tostring(count) .. " lần")
+	rolling = false
+	if Options.StartRoll and Options.StartRoll.Value then
+		Options.StartRoll:SetValue(false, true)
+	end
+end
+
+Tabs.Roll:AddToggle("StartRoll", {
+	Title = "Start Roll (roll đến hết tiền)",
+	Description = "Tắt công tắc để dừng bất cứ lúc nào",
+	Default = false,
+	Callback = function(value)
+		if value then
+			task.spawn(rollLoop)
+		end
+	end,
+})
+
+---------------------------------------------------------------------
+-- TAB MAIN
+---------------------------------------------------------------------
+-- 1) Ghi macro
+Tabs.Main:AddSection("1) Ghi macro")
+
+recordParagraph = Tabs.Main:AddParagraph({
+	Title = "Trạng thái ghi",
+	Content = "",
+	Lines = 3,
+})
+
+Tabs.Main:AddToggle("RecordMacro", {
+	Title = "Ghi macro (đặt unit nào, ở đâu)",
+	Description = "Bật rồi chơi bình thường: mọi lệnh đặt/nâng cấp unit của bạn được ghi lại",
+	Default = false,
+	Callback = function(value)
+		if value then
+			if not installHook() then
+				notify("Không hỗ trợ", "Executor của bạn không có hookmetamethod nên không ghi macro được", 6)
+				Options.RecordMacro:SetValue(false, true)
+				return
+			end
+			State.RecordedActions = {}
+			State.LastRecordedLabel = "chưa có"
+			State.RecordStart = os.clock()
+			State.Recording = true
+		else
+			State.Recording = false
+		end
+		refreshRecordParagraph()
+	end,
+})
+
+-- 2) Đặt tên + lưu
+Tabs.Main:AddSection("2) Đặt tên và lưu macro")
+
+Tabs.Main:AddInput("MacroName", {
+	Title = "Tên macro",
+	Default = "",
+	Placeholder = "vd: map1_hard",
+	Finished = true,
+})
+
+local macroDropdown
+
+local function macroFilePath(name)
+	return MACRO_DIR .. "/" .. name .. ".json"
+end
+
+local function listMacroNames()
+	local names = {}
+	local seen = {}
+	if type(listfiles) == "function" then
+		pcall(function()
+			for _, file in ipairs(listfiles(MACRO_DIR)) do
+				local name = tostring(file):match("([^/\\]+)%.json$")
+				if name and not seen[name] then
+					seen[name] = true
+					names[#names + 1] = name
+				end
+			end
+		end)
+	end
+	for path in pairs(memoryFiles) do
+		local name = path:match("^" .. MACRO_DIR:gsub("%p", "%%%0") .. "/(.+)%.json$")
+		if name and not seen[name] then
+			seen[name] = true
+			names[#names + 1] = name
+		end
+	end
+	table.sort(names)
+	return names
+end
+
+local function refreshMacroList()
+	local names = listMacroNames()
+	if macroDropdown then
+		macroDropdown:SetValues(names)
+	end
+	return names
+end
+
+Tabs.Main:AddButton({
+	Title = "Lưu macro đã ghi",
+	Description = "Tắt ghi macro trước, nhập tên rồi bấm lưu",
+	Callback = function()
+		if State.Recording then
+			Options.RecordMacro:SetValue(false)
+		end
+		local name = tostring(Options.MacroName.Value or ""):gsub("[^%w_%-]", "_")
+		if name == "" then
+			notify("Thiếu tên", "Hãy nhập tên macro", 4)
+			return
+		end
+		if #State.RecordedActions == 0 then
+			notify("Chưa có gì để lưu", "Hãy bật Ghi macro và chơi vài lệnh trước", 4)
+			return
+		end
+		local data = { name = name, createdAt = os.time(), actions = State.RecordedActions }
+		if saveJson(macroFilePath(name), data) then
+			notify("Đã lưu macro", name .. " (" .. tostring(#State.RecordedActions) .. " lệnh)", 4)
+			refreshMacroList()
+		else
+			notify("Lưu thất bại", "Không ghi được file macro", 5)
+		end
+	end,
+})
+
+-- 3) Chạy macro
+Tabs.Main:AddSection("3) Chạy macro đã lưu")
+
+macroDropdown = Tabs.Main:AddDropdown("MacroSelect", {
+	Title = "Chọn macro",
+	Values = listMacroNames(),
+	Multi = false,
+})
+
+Tabs.Main:AddButton({
+	Title = "Làm mới danh sách macro",
+	Callback = function()
+		local names = refreshMacroList()
+		notify("Macro", "Có " .. tostring(#names) .. " macro đã lưu", 3)
+	end,
+})
+
+Tabs.Main:AddSlider("MacroSpeed", {
+	Title = "Tốc độ chạy macro",
+	Description = "1 = đúng nhịp lúc ghi, 2 = nhanh gấp đôi",
+	Default = 1,
+	Min = 0.5,
+	Max = 3,
+	Rounding = 1,
+})
+
+local playStatus = Tabs.Main:AddParagraph({
+	Title = "Trạng thái macro",
+	Content = "Chưa chạy",
+	Lines = 2,
+})
+
+local function playMacro(macro)
+	State.Playing = true
+	State.PlayToken = State.PlayToken + 1
+	local token = State.PlayToken
+	local actions = macro.actions or {}
+	local last = 0
+	for index, action in ipairs(actions) do
+		if not State.Running or token ~= State.PlayToken or not (Options.PlayMacro and Options.PlayMacro.Value) then
+			break
+		end
+		local speed = math.max(tonumber(Options.MacroSpeed.Value) or 1, 0.1)
+		local wait_ = math.max((action.t - last) / speed, 0)
+		last = action.t
+		if wait_ > 0 then
+			task.wait(wait_)
+		end
+		if token ~= State.PlayToken or not (Options.PlayMacro and Options.PlayMacro.Value) then
+			break
+		end
+		local ok, result = fireStored(action)
+		-- InvokeServer trả về false khi chưa đủ tiền -> thử lại vài lần
+		local tries = 0
+		while State.Running and token == State.PlayToken and action.method == "InvokeServer"
+			and (not ok or result == false) and tries < 12 do
+			tries = tries + 1
+			task.wait(0.5)
+			ok, result = fireStored(action)
+		end
+		playStatus:SetDesc("Đang chạy " .. tostring(macro.name or "?") .. ": " .. tostring(index) .. "/" .. tostring(#actions) .. " lệnh")
+	end
+	State.Playing = false
+	State.MacroDone = true
+	playStatus:SetDesc("Đã chạy xong " .. tostring(macro.name or "?"))
+end
+
+local function loadSelectedMacro()
+	local name = Options.MacroSelect and Options.MacroSelect.Value
+	if not name or name == "" then
+		return nil
+	end
+	local data = loadJson(macroFilePath(name))
+	if type(data) == "table" and type(data.actions) == "table" then
+		data.name = data.name or name
+		return data
+	end
+	return nil
+end
+
+Tabs.Main:AddToggle("PlayMacro", {
+	Title = "Chạy macro",
+	Description = "Chạy macro đã chọn. Kết hợp Auto chơi lại bên dưới để lặp lại mỗi trận",
+	Default = false,
+	Callback = function(value)
+		if value then
+			local macro = loadSelectedMacro()
+			if not macro then
+				notify("Chưa chọn macro", "Hãy chọn macro đã lưu trước", 4)
+				Options.PlayMacro:SetValue(false, true)
+				return
+			end
+			State.LoadedMacro = macro
+			State.MacroDone = false
+			State.NextPlayAt = 0
+		else
+			State.PlayToken = State.PlayToken + 1
+			State.Playing = false
+		end
+	end,
+})
+
+task.spawn(function()
+	while State.Running do
+		if Options.PlayMacro and Options.PlayMacro.Value and not State.Playing and not State.MacroDone
+			and State.LoadedMacro and os.clock() >= State.NextPlayAt then
+			pcall(playMacro, State.LoadedMacro)
+		end
+		task.wait(0.4)
+	end
+end)
+
+-- 4) Auto chơi lại
+Tabs.Main:AddSection("4) Auto chơi lại")
+
+Tabs.Main:AddSlider("ReplayDelay", {
+	Title = "Chờ sau khi chơi lại rồi mới chạy macro (giây)",
+	Default = 8,
+	Min = 2,
+	Max = 40,
+	Rounding = 0,
+})
+
+Tabs.Main:AddToggle("AutoReplay", {
+	Title = "Auto chơi lại (hết trận tự bấm Replay)",
+	Description = "Tự tìm nút Replay / Retry / Play Again trên màn hình kết quả. Nếu đang bật Chạy macro, macro sẽ chạy lại cho trận mới",
+	Default = false,
+})
+
+task.spawn(function()
+	while State.Running do
+		if Options.AutoReplay and Options.AutoReplay.Value and os.clock() >= State.ReplayCooldownUntil then
+			local button = findButton(REPLAY_WORDS, false)
+			if button and clickButton(button) then
+				local delay = tonumber(Options.ReplayDelay.Value) or 8
+				State.MacroDone = false
+				State.Playing = false
+				State.PlayToken = State.PlayToken + 1
+				State.NextPlayAt = os.clock() + delay
+				-- không bấm lại liên tục khi nút còn hiện trên màn hình
+				State.ReplayCooldownUntil = os.clock() + math.max(delay + 15, 20)
+				task.wait(3)
+			end
+		end
+		task.wait(1)
+	end
+end)
+
+-- 5) Auto vào map ở lobby
+Tabs.Main:AddSection("5) Chọn map ở lobby, bay tới cổng và bấm Play")
+
+Tabs.Main:AddParagraph({
+	Title = "Cách dùng",
+	Content = "Ở lobby, đứng ngay cổng vào map, nhập tên map rồi bấm \"Lưu vị trí cổng\". Lần sau chỉ cần chọn map và bật Auto.",
+})
+
+Tabs.Main:AddInput("MapName", {
+	Title = "Tên map",
+	Default = "",
+	Placeholder = "vd: Map 1",
+	Finished = true,
+})
+
+local mapDropdown
+
+local function mapNames()
+	local names = {}
+	for name in pairs(State.Maps) do
+		names[#names + 1] = name
+	end
+	table.sort(names)
+	return names
+end
+
+Tabs.Main:AddButton({
+	Title = "Lưu vị trí cổng (đang đứng ở cổng map)",
+	Callback = function()
+		local name = tostring(Options.MapName.Value or "")
+		local char = LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if name == "" or not root then
+			notify("Thiếu thông tin", "Nhập tên map và đứng ở cổng map", 4)
+			return
+		end
+		State.Maps[name] = { placeId = game.PlaceId, cf = serialize(root.CFrame) }
+		saveJson(FOLDER .. "/maps.json", State.Maps)
+		if mapDropdown then
+			mapDropdown:SetValues(mapNames())
+		end
+		notify("Đã lưu cổng", name, 3)
+	end,
+})
+
+mapDropdown = Tabs.Main:AddDropdown("MapSelect", {
+	Title = "Chọn map",
+	Values = {},
+	Multi = false,
+})
+
+local joinStatus = Tabs.Main:AddParagraph({
+	Title = "Trạng thái vào map",
+	Content = "Chưa chạy",
+	Lines = 2,
+})
+
+local joinTween
+local function flyTo(cf)
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	local distance = (root.Position - cf.Position).Magnitude
+	if distance < 6 then
+		return
+	end
+	if joinTween then
+		pcall(function()
+			joinTween:Cancel()
+		end)
+	end
+	joinTween = TweenService:Create(root, TweenInfo.new(distance / 120, Enum.EasingStyle.Linear), { CFrame = cf })
+	joinTween:Play()
+end
+
+Tabs.Main:AddToggle("AutoJoinMap", {
+	Title = "Auto vào map (bay tới cổng + bấm Play)",
+	Description = "Chỉ chạy khi bạn đang ở đúng nơi đã lưu cổng (lobby)",
+	Default = false,
+})
+
+task.spawn(function()
+	while State.Running do
+		if Options.AutoJoinMap and Options.AutoJoinMap.Value then
+			local name = Options.MapSelect and Options.MapSelect.Value
+			local entry = name and State.Maps[name]
+			if not entry then
+				joinStatus:SetDesc("Hãy chọn map đã lưu")
+			elseif entry.placeId ~= game.PlaceId then
+				joinStatus:SetDesc("Không ở lobby của map này (đang trong trận?)")
+			else
+				local cf = deserialize(entry.cf)
+				if cf then
+					joinStatus:SetDesc("Đang bay tới " .. tostring(name))
+					flyTo(cf)
+					task.wait(1.2)
+					local button = findButton(PLAY_WORDS, true)
+					if button and clickButton(button) then
+						joinStatus:SetDesc("Đã bấm Play cho " .. tostring(name))
+						task.wait(3)
+					end
+				end
+			end
+		end
+		task.wait(1)
+	end
+end)
+
+-- 6) Auto chọn mode
+Tabs.Main:AddSection("6) Auto chọn mode")
+
+Tabs.Main:AddDropdown("ModeSelect", {
+	Title = "Chọn mode",
+	Values = { "Normal", "Easy", "Medium", "Hard", "Insane", "Nightmare", "Endless", "Infinite" },
+	Multi = false,
+	Default = 1,
+})
+
+Tabs.Main:AddInput("ModeCustom", {
+	Title = "Tên mode khác (ưu tiên nếu có nhập)",
+	Default = "",
+	Placeholder = "đúng chữ trên nút trong game",
+	Finished = true,
+})
+
+Tabs.Main:AddToggle("AutoMode", {
+	Title = "Auto chọn mode",
+	Description = "Khi màn hình chọn mode hiện lên, tự bấm nút có tên mode đã chọn",
+	Default = false,
+})
+
+task.spawn(function()
+	while State.Running do
+		if Options.AutoMode and Options.AutoMode.Value then
+			local custom = tostring(Options.ModeCustom.Value or "")
+			local wanted = custom ~= "" and custom or Options.ModeSelect.Value
+			if wanted and wanted ~= "" then
+				local button = findButton({ wanted }, true)
+				if button and clickButton(button) then
+					task.wait(2)
+				end
+			end
+		end
+		task.wait(1)
+	end
+end)
+
+---------------------------------------------------------------------
+-- Tải dữ liệu đã lưu
+---------------------------------------------------------------------
+ensureFolders()
+local learned = loadJson(FOLDER .. "/learned.json")
+if type(learned) == "table" then
+	State.Learned = learned
+end
+local maps = loadJson(FOLDER .. "/maps.json")
+if type(maps) == "table" then
+	State.Maps = maps
+	mapDropdown:SetValues(mapNames())
+end
+refreshRollParagraph()
+refreshRecordParagraph()
+refreshMacroList()
+
+---------------------------------------------------------------------
+-- Tắt script
+---------------------------------------------------------------------
+env.RaitoCameraTDShutdown = function()
+	State.Running = false
+	State.Recording = false
+	State.LearnTarget = nil
+	State.PlayToken = State.PlayToken + 1
+	for _, connection in ipairs(Connections) do
+		pcall(function()
+			connection:Disconnect()
+		end)
+	end
+	pcall(function()
+		Fluent:Destroy()
+	end)
+	env.RaitoCameraTDShutdown = nil
+end
+
+Window:SelectTab(1)
