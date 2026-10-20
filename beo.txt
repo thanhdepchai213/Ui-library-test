@@ -1,0 +1,518 @@
+--[[================================================================
+  NOJO HUB FULL · GOLD  (executor)  ·  TAI HUB + THEME + ICON
+  ------------------------------------------------------------------
+  1. Tai hub ReaKid tu main.lua (GitHub)
+  2. Ap dung theme vang gold + doi ten + sua dau tick + doi 2 icon
+  CHỈ doi mau / chu / bo goc / vien / Image. Khong sua Name, Parent,
+  Visible, Size, Position, Font => nut bam van hoat dong binh thuong.
+==================================================================]]
+
+-- ===== BUOC 1: TAI HUB =====
+local okLoad, errLoad = pcall(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/realkidhub/realkid/refs/heads/main/main.lua"))()
+end)
+if okLoad then
+    print("[FULL] Da tai hub ReaKid.")
+else
+    warn("[FULL] Tai hub that bai: " .. tostring(errLoad))
+end
+
+-- ===== BUOC 2: THEME + ICON =====
+
+--------------- CAU HINH CHUNG ----------------
+local PRESET     = "gold"    -- "gold" | "dark" | "neon" | "light" | "ocean"
+local TEN_MOI    = "Raito Hub"
+
+-- ICON: dien ten neu biet; de trong ("") = tu tim
+local ID_LOGO    = "79499633256738"   -- icon "R" tren thanh tieu de
+local ID_BUTTON  = "79499633256738"   -- icon nut bat/tat menu
+local SCALE      = "Fit"              -- "Fit" | "Crop" | "Fill" | "Stretch"
+local TEN_ICON_LOGO   = ""            -- vd: "Logo"
+local TEN_ICON_BUTTON = ""            -- vd: "Icon"
+-----------------------------------------------
+
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
+local pg  = plr:WaitForChild("PlayerGui")
+
+local THEMES = {
+    gold = {
+        Nen    = Color3.fromRGB(22, 18, 10),
+        NenPhu = Color3.fromRGB(34, 29, 17),
+        The    = Color3.fromRGB(46, 40, 23),
+        Nut    = Color3.fromRGB(64, 55, 31),
+        Viet   = Color3.fromRGB(255, 201, 64),
+        An     = Color3.fromRGB(255, 184, 0),
+        Chu    = Color3.fromRGB(255, 248, 231),
+        ChuPhu = Color3.fromRGB(255, 210, 74),
+        Goc    = UDim.new(0, 10),
+        Font   = nil,
+    },
+    dark = {
+        Nen    = Color3.fromRGB(18, 18, 24),
+        NenPhu = Color3.fromRGB(28, 28, 38),
+        The    = Color3.fromRGB(36, 36, 48),
+        Nut    = Color3.fromRGB(48, 48, 64),
+        Viet   = Color3.fromRGB(120, 120, 140),
+        An     = Color3.fromRGB(0, 170, 255),
+        Chu    = Color3.fromRGB(235, 235, 242),
+        ChuPhu = Color3.fromRGB(140, 140, 155),
+        Goc    = UDim.new(0, 6),
+        Font   = nil,
+    },
+    neon = {
+        Nen    = Color3.fromRGB(8, 8, 12),
+        NenPhu = Color3.fromRGB(16, 16, 24),
+        The    = Color3.fromRGB(22, 22, 34),
+        Nut    = Color3.fromRGB(30, 30, 46),
+        Viet   = Color3.fromRGB(0, 255, 170),
+        An     = Color3.fromRGB(255, 0, 170),
+        Chu    = Color3.fromRGB(240, 255, 250),
+        ChuPhu = Color3.fromRGB(0, 220, 160),
+        Goc    = UDim.new(0, 10),
+        Font   = nil,
+    },
+    light = {
+        Nen    = Color3.fromRGB(245, 245, 248),
+        NenPhu = Color3.fromRGB(255, 255, 255),
+        The    = Color3.fromRGB(255, 255, 255),
+        Nut    = Color3.fromRGB(232, 232, 240),
+        Viet   = Color3.fromRGB(180, 180, 200),
+        An     = Color3.fromRGB(90, 110, 255),
+        Chu    = Color3.fromRGB(25, 25, 35),
+        ChuPhu = Color3.fromRGB(120, 120, 140),
+        Goc    = UDim.new(0, 12),
+        Font   = nil,
+    },
+    ocean = {
+        Nen    = Color3.fromRGB(10, 22, 32),
+        NenPhu = Color3.fromRGB(16, 34, 48),
+        The    = Color3.fromRGB(22, 44, 60),
+        Nut    = Color3.fromRGB(30, 58, 78),
+        Viet   = Color3.fromRGB(40, 180, 200),
+        An     = Color3.fromRGB(0, 200, 255),
+        Chu    = Color3.fromRGB(230, 248, 255),
+        ChuPhu = Color3.fromRGB(130, 180, 200),
+        Goc    = UDim.new(0, 8),
+        Font   = nil,
+    },
+}
+
+local T       = THEMES[PRESET] or THEMES.gold
+local TAG     = "ThemeDone"
+local TEN_HUB = "Nousigi Hub"          -- ten OBJECT goc (KHONG doi)
+local TEN_CU  = "RealKid"
+
+local KHOA = {
+    "RealKid", "NoiJo Hub", "Server Uptime", "Search section",
+    "Stack Farming", "Fish ESP", "Time in Server", "JobID", "Hop Farm",
+    "Fist of Darkness", "Place ID",
+}
+
+-- ==== RichText ====
+local R = math.floor(T.Viet.R * 255 + 0.5)
+local G = math.floor(T.Viet.G * 255 + 0.5)
+local B = math.floor(T.Viet.B * 255 + 0.5)
+local MAU_MOI = ('color="rgb(%d,%d,%d)"'):format(R, G, B)
+
+local function doiMauFont(s)
+    return (s:gsub('color="rgb%((%d+),(%d+),(%d+)%)"', function(a, b, c)
+        a, b, c = tonumber(a), tonumber(b), tonumber(c)
+        if a > 150 and b < 100 and c < 100 then
+            return ('color="rgb(%d,%d,%d)"'):format(a, b, c)
+        end
+        return MAU_MOI
+    end))
+end
+
+local function laMauNhan(c)
+    local mx = math.max(c.R, c.G, c.B)
+    local mn = math.min(c.R, c.G, c.B)
+    return (mx - mn) > 0.30 and mx > 0.40
+end
+
+local function nenTuMau(c)
+    if laMauNhan(c) then return T.An end
+    local lum = 0.299*c.R + 0.587*c.G + 0.114*c.B
+    if lum > 0.55 then return T.The end
+    if lum > 0.22 then return T.NenPhu end
+    return T.Nen
+end
+
+local function doiTen(txt)
+    if type(txt) ~= "string" or not txt:find(TEN_CU, 1, true) then return txt, false end
+    local m = txt:gsub("RealKid Hub", TEN_MOI)
+    m = m:gsub(TEN_CU, TEN_MOI)
+    return m, (m ~= txt)
+end
+
+local function apply(v)
+    local class = v.ClassName
+    local laGD = v:IsA("GuiObject")
+    if not laGD and class ~= "UICorner" and class ~= "UIStroke" then return end
+    if v:GetAttribute(TAG) then return end
+    v:SetAttribute(TAG, true)
+
+    if class == "TextLabel" or class == "TextButton" or class == "TextBox" then
+        local ok, txt = pcall(function() return v.Text end)
+        if ok then
+            local moi, dcDoi = doiTen(txt)
+            if dcDoi then pcall(function() v.Text = moi end) txt = moi end
+        end
+
+        v.TextColor3 = laMauNhan(v.TextColor3) and T.An or
+                       (class == "TextButton" and T.ChuPhu or T.Chu)
+        if T.Font then v.Font = T.Font end
+
+        if v.BackgroundTransparency < 1 then
+            local bgGoc = v.BackgroundColor3
+            local nenNhan = laMauNhan(bgGoc)
+            if class == "TextButton" then
+                v.BackgroundColor3 = nenNhan and T.An or T.Nut
+                if nenNhan then v.TextColor3 = T.Nen end
+            else
+                v.BackgroundColor3 = nenTuMau(bgGoc)
+            end
+            v.BorderSizePixel = 0
+        end
+
+        if v.RichText and ok and type(txt) == "string" and txt:find('color="rgb', 1, true) then
+            pcall(function() v.Text = doiMauFont(txt) end)
+        end
+
+    elseif class == "Frame" or class == "ScrollingFrame" then
+        if v.BackgroundTransparency < 1 then
+            v.BackgroundColor3 = nenTuMau(v.BackgroundColor3)
+            v.BorderSizePixel  = 0
+        end
+        if class == "ScrollingFrame" then
+            v.ScrollBarImageColor3 = T.An
+            v.ScrollBarThickness   = 4
+        end
+
+    elseif class == "ImageLabel" or class == "ImageButton" then
+        -- khong dotg vao .Image (do SET ICON quan ly), chi chinh nen vi tri
+        if v.BackgroundTransparency < 1 then
+            v.BackgroundColor3 = nenTuMau(v.BackgroundColor3)
+            v.BorderSizePixel  = 0
+        end
+
+    elseif class == "UICorner" then
+        v.CornerRadius = T.Goc
+    elseif class == "UIStroke" then
+        v.Color = T.Viet
+    end
+end
+
+-- ==== goc quet ====
+local roots = { pg }
+do
+    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+    if ok and cg then table.insert(roots, cg) end
+end
+
+local function laHub(gui)
+    if not gui:IsA("ScreenGui") then return false end
+    if gui.Name:find(TEN_HUB, 1, true) then return true end
+    for _, v in ipairs(gui:GetDescendants()) do
+        local ok, txt = pcall(function() return v.Text end)
+        if ok and type(txt) == "string" and #txt > 0 then
+            for _, k in ipairs(KHOA) do
+                if txt:find(k, 1, true) then return true end
+            end
+        end
+    end
+    return false
+end
+
+local cacHub = {}
+
+local function theme(gui)
+    for _, v in ipairs(gui:GetDescendants()) do
+        pcall(apply, v)
+    end
+    gui.DescendantAdded:Connect(function(v)
+        task.defer(function() pcall(apply, v) end)
+    end)
+end
+
+local function quet()
+    for _, root in ipairs(roots) do
+        local ok, ds = pcall(function() return root:GetDescendants() end)
+        if ok and ds then
+            for _, g in ipairs(ds) do
+                if g:IsA("ScreenGui") and laHub(g) and not cacHub[g] then
+                    table.insert(cacHub, g)
+                    cacHub[g] = true
+                    theme(g)
+                    print(("[THEME] preset='%s' -> %s (goc: %s, %d phan tu)")
+                        :format(PRESET, g.Name, root.Name, #g:GetDescendants()))
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    for _ = 1, 90 do
+        pcall(quet)
+        if #cacHub > 0 then return end
+        task.wait(0.5)
+    end
+    warn("[THEME] KHONG tim thay hub.")
+end)
+
+-- doi ten lap lai
+task.spawn(function()
+    local sach = 0
+    for _ = 1, 240 do
+        task.wait(1.5)
+        local daDoi = 0
+        for _, gui in ipairs(cacHub) do
+            for _, v in ipairs(gui:GetDescendants()) do
+                local ok, txt = pcall(function() return v.Text end)
+                if ok then
+                    local moi, dcDoi = doiTen(txt)
+                    if dcDoi then pcall(function() v.Text = moi end); daDoi = daDoi + 1 end
+                end
+            end
+        end
+        if daDoi > 0 then sach = 0
+        else
+            sach = sach + 1
+            if sach >= 10 then return end
+        end
+    end
+end)
+
+-- =======================  SET ICON  =======================
+
+local SC = Enum.ScaleType[SCALE] or Enum.ScaleType.Fit
+local function urlOf(id) return "rbxassetid://" .. tostring(id) end
+
+-- chu ngan (vd "R", "N") = ung vien icon text
+local function laChuNgan(t)
+    if type(t) ~= "string" then return false end
+    local s = t:match("^%s*(.-)%s*$") or t
+    return #s > 0 and #s <= 2 and not s:find("%s")
+end
+
+-- ★ ap icon: ho tro ca ImageLabel LAAN TextLabel chua chu (vd "R")
+local function apIcon(img, id)
+    local url = urlOf(id)
+    local ok, kq = pcall(function()
+        if img:IsA("ImageLabel") or img:IsA("ImageButton") then
+            local cu = img.Image
+            img.Image = url
+            img.ImageColor3 = Color3.new(1, 1, 1)   -- bo tint
+            img.ScaleType = SC
+            return ("anh: %s -> %s"):format(tostring(cu), url)
+
+        elseif img:IsA("TextLabel") or img:IsA("TextButton") then
+            local cu = img.Text
+            -- tao/dua lai ImageLabel con de che chu
+            local con = img:FindFirstChild("NoiJoIcon")
+            if not con then
+                con = Instance.new("ImageLabel")
+                con.Name = "NoiJoIcon"
+                con.BackgroundTransparency = 1
+                con.Size     = UDim2.fromScale(1, 1)
+                con.Position = UDim2.fromScale(0, 0)
+                con.ZIndex   = (img.ZIndex or 1) + 1
+                con.Parent   = img
+            end
+            con.Image = url
+            con.ImageColor3 = Color3.new(1, 1, 1)
+            con.ScaleType = SC
+            pcall(function() img.Text = "" end)
+            return ("chu %q -> anh con noiJoIcon"):format(tostring(cu))
+
+        end
+        return "lop khong ho tro"
+    end)
+    if ok then return kq else return "LOI: " .. tostring(kq) end
+end
+
+-- tim ung vien icon trong mot gui
+local function ungVien(gui, tenChiDinh, gomChuNgan, scope)
+    local kq = {}
+    local ds
+    if scope then
+        local ok, r = pcall(function() return scope:GetDescendants() end)
+        ds = ok and r or nil
+    else
+        local ok, r = pcall(function() return gui:GetDescendants() end)
+        ds = ok and r or nil
+    end
+    if not ds then return kq end
+
+    if tenChiDinh and #tenChiDinh > 0 then
+        for _, v in ipairs(ds) do
+            if v.Name == tenChiDinh then table.insert(kq, v) end
+        end
+        return kq
+    end
+
+    for _, v in ipairs(ds) do
+        if v:IsA("ImageLabel") or v:IsA("ImageButton") then
+            local w, h = 0, 0
+            pcall(function() w = math.floor(v.AbsoluteSize.X) h = math.floor(v.AbsoluteSize.Y) end)
+            if w >= 8 and h >= 8 then table.insert(kq, v) end
+        elseif gomChuNgan and (v:IsA("TextLabel") or v:IsA("TextButton")) then
+            local ok, t = pcall(function() return v.Text end)
+            if ok and laChuNgan(t) then table.insert(kq, v) end
+        end
+    end
+    return kq
+end
+
+-- ★ chon icon: UU TIEN ANH. Chi dung chu ngan (vd "R") khi khong co anh nao
+local function chonIcon(gui, tenChiDinh, scope)
+    if tenChiDinh and #tenChiDinh > 0 then
+        return ungVien(gui, tenChiDinh, false, scope), "theo ten"
+    end
+    local a = ungVien(gui, nil, false, scope)
+    if #a > 0 then return a, "anh" end
+    local b = ungVien(gui, nil, true, scope)
+    return b, "chu ngan"
+end
+
+-- tim vi tri logo: lay TextLabel chua ten hub, roi scope = cha cua no
+local function timScopeLogo(gui)
+    local ds
+    local ok, r = pcall(function() return gui:GetDescendants() end)
+    ds = ok and r or nil
+    if not ds then return nil end
+    for _, v in ipairs(ds) do
+        if v:IsA("TextLabel") or v:IsA("TextButton") then
+            local ok2, t = pcall(function() return v.Text end)
+            if ok2 and type(t) == "string" and
+               (t:find(TEN_MOI, 1, true) or t:find("RealKid", 1, true)) then
+                return v.Parent
+            end
+        end
+    end
+    return nil
+end
+
+-- khoang cach tu anh den goc trai-tren man hinh (dung de chon logo "R")
+local function khoangGocTraiTren(v)
+    local ok, ap = pcall(function() return v.AbsolutePosition end)
+    if not ok then return math.huge end
+    return math.abs(ap.X) + math.abs(ap.Y)
+end
+
+-- lay tat ca anh nho (khoong phai nen/khung lon) trong mot gui
+local function layAnhNho(gui)
+    local kq = {}
+    local ok, ds = pcall(function() return gui:GetDescendants() end)
+    if ok and ds then
+        for _, v in ipairs(ds) do
+            if v:IsA("ImageLabel") or v:IsA("ImageButton") then
+                local ok2, sz = pcall(function() return v.AbsoluteSize end)
+                if ok2 and sz.X <= 96 and sz.Y <= 96 then
+                    table.insert(kq, v)
+                end
+            end
+        end
+    end
+    return kq
+end
+
+-- chon logo: anh nho gan goc trai-tren nhat (hoac theo ten neu co TEN_ICON_LOGO)
+local function chonLogo(gui, tenChiDinh)
+    if tenChiDinh and #tenChiDinh > 0 then
+        local ds = ungVien(gui, tenChiDinh, false, nil)   -- tim toan cuc trong gui
+        return ds, (#ds > 0 and "theo ten" or "khong tim thay ten")
+    end
+    local ds = layAnhNho(gui)
+    if #ds == 0 then return {}, "khong co anh nho" end
+    table.sort(ds, function(a, b)
+        return khoangGocTraiTren(a) < khoangGocTraiTren(b)
+    end)
+    return {ds[1]}, "anh goc trai tren"
+end
+
+-- ===== chay sau khi theme da tim thay hub =====
+local dsChay = {}   -- { {img, id}, ... }
+
+task.spawn(function()
+    for _ = 1, 80 do
+        if #cacHub > 0 then break end
+        task.wait(0.5)
+    end
+    if #cacHub == 0 then warn("[ICON] khong tim thay hub."); return end
+    task.wait(1)
+
+    for _, gui in ipairs(cacHub) do
+
+        ---- NUT BAT/TAT MENU ----
+        if gui.Name == "Nousigi Hub Btn" then
+            local ds, cach = chonIcon(gui, TEN_ICON_BUTTON, nil)
+            if #ds == 0 then
+                print("[ICON] Nut: khong tim thay doi tuong icon.")
+                local ok, all = pcall(function() return gui:GetDescendants() end)
+                if ok and all then
+                    for _, v in ipairs(all) do
+                        local extra = ""
+                        pcall(function()
+                            if v:IsA("ImageLabel") or v:IsA("ImageButton") then
+                                extra = ("  Image=%s  %dx%d"):format(
+                                    tostring(v.Image),
+                                    math.floor(v.AbsoluteSize.X), math.floor(v.AbsoluteSize.Y))
+                            elseif v:IsA("TextLabel") or v:IsA("TextButton") then
+                                extra = ("  Text=%s  %dx%d"):format(
+                                    string.format("%q", tostring(v.Text)),
+                                    math.floor(v.AbsoluteSize.X), math.floor(v.AbsoluteSize.Y))
+                            elseif v:IsA("GuiObject") then
+                                extra = ("  %dx%d"):format(
+                                    math.floor(v.AbsoluteSize.X), math.floor(v.AbsoluteSize.Y))
+                            end
+                        end)
+                        print(("     %s [%s]%s"):format(v.Name, v.ClassName, extra))
+                    end
+                end
+            end
+            for _, v in ipairs(ds) do
+                print(("[ICON] NUT  %-18s [%s] (%s)  %s")
+                    :format(v.Name, v.ClassName, cach, apIcon(v, ID_BUTTON)))
+                table.insert(dsChay, { img = v, id = ID_BUTTON })
+            end
+        end
+
+        ---- LOGO TIEU DE (icon "R" goc trai tren) ----
+        local ds, cach = chonLogo(gui, TEN_ICON_LOGO)
+        if #ds == 0 then
+            print(("[ICON] %s: %s."):format(gui.Name, cach))
+        end
+        for _, v in ipairs(ds) do
+            print((("[ICON] LOGO %-18s [%s] (%s)  %s"))
+                :format(v.Name, v.ClassName, cach, apIcon(v, ID_LOGO)))
+            table.insert(dsChay, { img = v, id = ID_LOGO })
+        end
+    end
+
+    if #dsChay == 0 then
+        warn("[ICON] KHONG doi duoc icon nao. Goi y: dien TEN_ICON_LOGO / TEN_ICON_BUTTON.")
+    else
+        print(("[ICON] Da ap dung cho %d doi tuong (ScaleType=%s)."):format(#dsChay, SCALE))
+    end
+end)
+
+-- chong hub ghi lai (60s)
+task.spawn(function()
+    for _ = 1, 30 do
+        task.wait(2)
+        for _, d in ipairs(dsChay) do
+            pcall(function()
+                if d.img:IsA("ImageLabel") or d.img:IsA("ImageButton") then
+                    if d.img.Image ~= urlOf(d.id) then d.img.Image = urlOf(d.id) end
+                elseif d.img:IsA("TextLabel") or d.img:IsA("TextButton") then
+                    local con = d.img:FindFirstChild("NoiJoIcon")
+                    if con and con.Image ~= urlOf(d.id) then con.Image = urlOf(d.id) end
+                    if d.img.Text ~= "" then d.img.Text = "" end
+                end
+            end)
+        end
+    end
+end)
